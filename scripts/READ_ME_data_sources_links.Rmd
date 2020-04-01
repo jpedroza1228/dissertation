@@ -1,0 +1,60 @@
+---
+title: "Notes for Dissertation"
+author: "JP"
+date: "3/27/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Datasets currently investigating
+
+1. County Health Rankings - California
+2. City Health Dashboard
+3. State of California Department of Justice's Crime Data
+4. 500 Cities Data Portal
+5. Diversity data kids - child opportunity
+6. CDC - BRFSS data
+
+Important Links:
+
+1. County Health Rankings
+- https://www.countyhealthrankings.org/explore-health-rankings/use-data/go-beyond-the-snapshot
+- https://www.countyhealthrankings.org/explore-health-rankings/measures-data-sources/2020-measures
+- https://www.countyhealthrankings.org/explore-health-rankings/use-data/go-beyond-the-snapshot/find-more-data
+
+
+2. 500 Cities Data Portal
+- https://chronicdata.cdc.gov/browse?category=500+Cities
+
+
+3. City Health Dashboard
+- API: https://www.cityhealthdashboard.com/drupal/user/login
+- https://api.cityhealthdashboard.com/
+
+- API Key: bd33d0fa02cc919217a928a1d9fe3e28
+- this can be used for the cityhealthdashboard.com API
+
+username: `jpedroza_prev`
+password: `14032Gridley!`
+
+
+4. Diversity Data Kids
+- http://data.diversitydatakids.org/dataset/coi20-child-opportunity-index-2-0-database
+
+
+5. BRFSS data
+- https://www.cdc.gov/brfss/annual_data/annual_data.htm
+
+
+6. Crime data - California
+- https://oag.ca.gov/crime
+- https://oag.ca.gov/cjsc/databases
+- https://openjustice.doj.ca.gov/data
+- 
+
+
+
+
