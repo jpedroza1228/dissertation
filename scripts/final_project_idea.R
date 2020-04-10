@@ -10,7 +10,7 @@ options(scipen = 999)
 
 getwd()
 
-set.seed(20200304)
+set.seed(04092020)
 
 
 county15 <- read.csv("E:/UO/R Projects/dissertation/final_data/county15_sub.csv")
@@ -69,20 +69,21 @@ city_wide <- city_sub %>%
 
 
 # county health ranking data
-ex15 <- county15 %>% 
-  inspect_na()
 
-ex16 <- county16 %>% 
-  inspect_na()
+# ex15 <- county15 %>% 
+  # inspect_na()
 
-ex17 <- county17 %>% 
-  inspect_na()
+# ex16 <- county16 %>% 
+  # inspect_na()
 
-ex18 <- county18 %>% 
-  inspect_na()
+# ex17 <- county17 %>% 
+  # inspect_na()
 
-ex19 <- county19 %>% 
-  inspect_na()
+# ex18 <- county18 %>% 
+  # inspect_na()
+
+# ex19 <- county19 %>% 
+  # inspect_na()
 
 
 county15_sub <- county15[, -which(colMeans(is.na(county15)) >= 0.40)]
@@ -96,7 +97,7 @@ county <- full_join(county, county17_sub)
 county <- full_join(county, county18_sub)
 county <- full_join(county, county19_sub)
 
-ex <- county %>% 
+county %>% 
   inspect_na()
 
 county <- county[, -which(colMeans(is.na(county)) >= .21)]
