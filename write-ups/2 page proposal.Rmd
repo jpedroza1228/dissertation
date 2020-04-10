@@ -1,0 +1,425 @@
+---
+title: "2-pg proposal"
+author: "JP"
+date: "3/31/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 2 Page Proposal
+
+Page 503 on ecological model of health behavior.
+
+```{r}
+library(tidyverse)
+library(inspectdf)
+library(psych)
+library(lavaan)
+library(semPlot)
+library(semTools)
+library(lme4)
+library(lmerTest)
+
+getwd()
+
+arrest <- read_csv('E:/UO/R Projects/dissertation/final_data/arrest_sub.csv')
+brfss16 <- read_csv('E:/UO/R Projects/dissertation/final_data/brfss16_ca.csv')
+brfss17 <- read_csv('E:/UO/R Projects/dissertation/final_data/brfss17_ca.csv')
+brfss18 <- read_csv('E:/UO/R Projects/dissertation/final_data/brfss18_ca.csv')
+county <- read_csv('E:/UO/R Projects/dissertation/final_data/ca_county.csv')
+city500 <- read_csv('E:/UO/R Projects/dissertation/final_data/cities500_ca.csv')
+cops <- read_csv('E:/UO/R Projects/dissertation/final_data/cops_sub.csv')
+hate <- read_csv('E:/UO/R Projects/dissertation/final_data/hate_sub.csv')
+smart16 <- read_csv('E:/UO/R Projects/dissertation/final_data/smart16_sub.csv')
+smart17 <- read_csv('E:/UO/R Projects/dissertation/final_data/smart17_sub.csv')
+```
+
+```{r}
+arrest %>% 
+  colnames()
+```
+
+```{r}
+brfss <- left_join(brfss16, brfss17)
+brfss <- full_join(brfss, brfss18)
+
+colnames(brfss16)
+
+brfss16_jp <- brfss16 %>%
+  dplyr::select(genhlth,
+                physhlth,
+                menthlth,
+                hlthpln1,
+                exerany2,
+                sleptim1,
+                asthma3,
+                asthnow,
+                havarth3,
+                sex,
+                educa,
+                employ1,
+                income2,
+                internet,
+                decide,
+                diffwalk,
+                smokday2,
+                usenow3,
+                fall12mn,
+                qlmentl2,
+                qlstres2,
+                qlhlth2,
+                ssbsugr2:ssbfrut2,
+                marijana,
+                asattack,
+                asactlim,
+                qlactlm2,
+                qstlang,
+                mscode:x_cprace,
+                x_rfhlth:x_totinda,
+                x_ltasth1:x_drdxar1,
+                x_prace1:x_rfbmi5,
+                x_educag:x_curecig) %>% 
+  rename(genhealth = genhlth,
+         phyhealth = physhlth,
+         menhealth = menthlth,
+         health_care = hlthpln1,
+         exercise_30days = exerany2,
+         time_sleep = sleptim1,
+         asthma = asthma3,
+         still_asthma = asthnow,
+         arthritis = havarth3,
+         education = educa,
+         employment = employ1,
+         income_level = income2,
+         diff_concentrate = decide,
+         diff_walk = diffwalk,
+         smoke_freq_day = smokday2,
+         use_smokeless = usenow3,
+         fall_lastyear = fall12mn,
+         depress_30days = qlmentl2,
+         anxious_30days = qlstres2,
+         energy_30days = qlhlth2,
+         soda = ssbsugr2,
+         sugar_drink = ssbfrut2,
+         weed = marijana,
+         asthma_lastyear = asattack,
+         limit_pa_asthma_lastyear = asactlim,
+         pa_limit_health = qlactlm2,
+         language_id = qstlang,
+         metro_code = mscode,
+         sample_design_stratify = x_ststr,
+         stratum_wt = x_strwt,
+         raw_wt_factor_raking = x_rawrake,
+         design_wt_raking = x_wt2rake,
+         cal_goodhealth = x_rfhlth,
+         cal_phyhealth = x_phys14d,
+         cal_menhealth = x_ment14d,
+         cal_health_care_1864 = x_hcvu651,
+         cal_ltpa = x_totinda,
+         cal_life_asthma = x_ltasth1,
+         cal_cur_asthma = x_casthm1,
+         cal_asthma_stat = x_asthms1,
+         cal_arthritis = x_drdxar1,
+         cal_prefer_race = x_prace1,
+         cal_non_lat_race = x_mrace1,
+         cal_latino = x_hispanc,
+         cal_race_group = x_race,
+         cal_race_compare_white = x_raceg21,
+         cal_5_race = x_racegr3,
+         cal_age_5year = x_ageg5yr,
+         cal_1864_65plus = x_age65yr,
+         cal_age_imputed_above80 = x_age80,
+         age_imputed_6group = x_age_g,
+         cal_ht_in = htin4,
+         cal_ht_m = htm4,
+         cal_wt_kilo = wtkg3,
+         bmi = x_bmi5,
+         bmi_cat = x_bmi5cat,
+         overweight_obese = x_rfbmi5,
+         cal_ed_cat = x_educag,
+         cal_income_cat = x_incomg,
+         cal_smoke_stat = x_smoker3,
+         cal_current_smoke = x_rfsmok3,
+         cal_ecig_stat = x_ecigsts,
+         cal_current_ecig = x_curecig)
+
+brfss16_jp %>% 
+  group_by(bmi_cat) %>% 
+  count(cal_ltpa)
+
+```
+
+Correlates of physical inactivity
+
+- motivation
+- beliefs of physical activity
+- obesity
+- pain
+- mental health
+- race/ethnicity
+- age
+- education
+- lack of energy
+- neighborhood aesthetics
+- seeing others exercising
+- social groups to exercise with
+
+Covariates
+- 
+
+
+```{r}
+brfss17 %>% 
+  names()
+
+brfss17_jp <- brfss17 %>%
+  dplyr::select(genhlth,
+                physhlth,
+                menthlth,
+                hlthpln1,
+                asthma3,
+                asthnow,
+                havarth3,
+                arthsocl,
+                joinpai1,
+                # ARTHSOCL,
+                # JOINPAI1,
+                sex,
+                educa,
+                employ1,
+                income2,
+                internet,
+                decide,
+                diffwalk,
+                smokday2,
+                usenow3,
+                fruit2:vegetab2,
+                exerany2:strength,
+                copdsmok,
+                bpexer,
+                bpexradv,
+                asnoslep,
+                # FRUIT2:VEGETAB2,
+                # exerany2:STRENGTH,
+                # COPDSMOK,
+                # BPEXER,
+                # BPEXRADV,
+                # ASNOSLEP,
+                qlmentl2,
+                qlstres2,
+                qlhlth2,
+                sleptim1,
+                ssbsugr2,
+                ssbfrut3,
+                # ssbfrut2,
+                marijana,
+                lcsnumcg,
+                # LCSNUMCG,
+                asattack,
+                asactlim,
+                # qlactlm2,
+                qstlang,
+                sdhbills:sdhstres,
+                # SDHBILLS:SDHSTRES,
+                mscode:x_cprace,
+                x_rfhlth:x_rfbmi5,
+                x_educag:x_curecig,
+                frutda2:x_pastae1) 
+  # rename(genhealth = genhlth,
+  #        phyhealth = physhlth,
+  #        menhealth = menthlth,
+  #        health_care = hlthpln1,
+  #        exercise_30days = exerany2,
+  #        time_sleep = sleptim1,
+  #        asthma = asthma3,
+  #        still_asthma = asthnow,
+  #        arthritis = havarth3,
+  #        education = educa,
+  #        employment = employ1,
+  #        income_level = income2,
+  #        diff_concentrate = decide,
+  #        diff_walk = diffwalk,
+  #        smoke_freq_day = smokday2,
+  #        use_smokeless = usenow3,
+  #        depress_30days = qlmentl2,
+  #        anxious_30days = qlstres2,
+  #        energy_30days = qlhlth2,
+  #        soda = ssbsugr2,
+  #        sugar_drink = ssbfrut2,
+  #        weed = marijana,
+  #        asthma_lastyear = asattack,
+  #        limit_pa_asthma_lastyear = asactlim,
+  #        pa_limit_health = qlactlm2,
+  #        language_id = qstlang,
+  #        metro_code = mscode,
+  #        sample_design_stratify = x_ststr,
+  #        stratum_wt = x_strwt,
+  #        raw_wt_factor_raking = x_rawrake,
+  #        design_wt_raking = x_wt2rake,
+  #        cal_goodhealth = x_rfhlth,
+  #        cal_phyhealth = x_phys14d,
+  #        cal_menhealth = x_ment14d,
+  #        cal_health_care_1864 = x_hcvu651,
+  #        cal_ltpa = x_totinda,
+  #        cal_life_asthma = x_ltasth1,
+  #        cal_cur_asthma = x_casthm1,
+  #        cal_asthma_stat = x_asthms1,
+  #        cal_arthritis = x_drdxar1,
+  #        cal_prefer_race = x_prace1,
+  #        cal_non_lat_race = x_mrace1,
+  #        cal_latino = x_hispanc,
+  #        cal_race_group = x_race,
+  #        cal_race_compare_white = x_raceg21,
+  #        cal_5_race = x_racegr3,
+  #        cal_age_5year = x_ageg5yr,
+  #        cal_1864_65plus = x_age65yr,
+  #        cal_age_imputed_above80 = x_age80,
+  #        age_imputed_6group = x_age_g,
+  #        cal_ht_in = htin4,
+  #        cal_ht_m = htm4,
+  #        cal_wt_kilo = wtkg3,
+  #        bmi = x_bmi5,
+  #        bmi_cat = x_bmi5cat,
+  #        overweight_obese = x_rfbmi5,
+  #        cal_ed_cat = x_educag,
+  #        cal_income_cat = x_incomg,
+  #        cal_smoke_stat = x_smoker3,
+  #        cal_current_smoke = x_rfsmok3,
+  #        cal_ecig_stat = x_ecigsts,
+  #        cal_current_ecig = x_curecig)
+
+
+brfss17 %>% 
+  colnames()
+```
+
+```{r}
+brfss18 %>% 
+  names()
+```
+
+
+```{r}
+county %>% 
+  filter(release_year == 2016 |
+           release_year == 2017)
+```
+
+```{r}
+city500 %>% 
+  colnames()
+
+city500 %>% 
+  filter(measure_id == 'LPA') %>% 
+  group_by(year, geographic_level) %>% 
+  count(measure_id)
+
+city500 %>% 
+  count(city_name)
+
+city500 %>% 
+  count(year)
+```
+
+```{r}
+cops %>% 
+  colnames()
+
+cops %>% 
+  filter(year == 2016 |
+           year == 2017)
+```
+
+```{r}
+hate %>% 
+  colnames()
+
+hate <- hate %>% 
+  filter(closed_year == 2016 |
+           closed_year == 2017) %>% 
+  mutate(county_name = recode(county, '1' = 'alameda',
+                              '2' = 'alpine',
+                              '3' = 'amador', 
+                              '4' = 'butte',
+                              '5' = 'calaveras',
+                              '6' = 'colusa',
+                              '7' = 'contra_costa',
+                              '8' = 'del_norte',
+                              '9' = 'el_dorado',
+                              '10' = 'fresno',
+                              '11' = 'glenn',
+                              '12' = 'humboldt',
+                              '13' = 'imperial',
+                              '14' = 'inyo',
+                              '15' = 'kern',
+                              '16' = 'kings',
+                              '17' = 'lake',
+                              '18' = 'lassen',
+                              '19' = 'los_angeles',
+                              '20' = 'madera',
+                              '21' = 'marin',
+                              '22' = 'mariposa',
+                              '23' = 'mendocino',
+                              '24' = 'merced',
+                              '25' = 'modoc',
+                              '26' = 'mono',
+                              '27' = 'monterey',
+                              '28' = 'napa',
+                              '29' = 'nevada',
+                              '30' = 'orange',
+                              '31' = 'placer',
+                              '32' = 'plumas',
+                              '33' = 'riverside',
+                              '34' = 'sacramento',
+                              '35' = 'san_benito',
+                              '36' = 'san_bernardino',
+                              '37' = 'san_diego',
+                              '38' = 'san_francisco',
+                              '39' = 'san_joaquin',
+                              '40' = 'san_luis_obispo',
+                              '41' = 'san_mateo',
+                              '42' = 'santa_barbara',
+                              '43' = 'santa_clara',
+                              '44' = 'santa_cruz',
+                              '45' = 'shasta',
+                              '46' = 'sierra',
+                              '47' = 'siskiyou',
+                              '48' = 'solano',
+                              '49' = 'sonoma',
+                              '50' = 'stanislaus',
+                              '51' = 'sutter',
+                              '52' = 'tehama',
+                              '53' = 'trinity',
+                              '54' = 'tulare',
+                              '55' = 'tuolumne',
+                              '56' = 'ventura',
+                              '57' = 'yolo',
+                              '58' = 'yuba'))
+
+hate %>% 
+  group_by(closed_year, county_name, most_serious_location) %>% 
+  count(most_serious_bias)
+```
+
+```{r}
+smart16 %>% 
+  count(mmsaname)
+
+smart16 %>% 
+  group_by(mmsaname) %>% 
+  count(x.race)
+```
+
+```{r}
+smart17 %>% 
+  count(mmsaname)
+```
+
+## Notes
+
+
+
+

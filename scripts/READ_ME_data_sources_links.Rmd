@@ -15,8 +15,7 @@ knitr::opts_chunk$set(echo = TRUE)
 2. City Health Dashboard
 3. State of California Department of Justice's Crime Data
 4. 500 Cities Data Portal
-5. Diversity data kids - child opportunity
-6. CDC - BRFSS data
+5. CDC - BRFSS data
 
 Important Links:
 
@@ -39,10 +38,6 @@ Important Links:
 
 username: `jpedroza_prev`
 password: `14032Gridley!`
-
-
-4. Diversity Data Kids
-- http://data.diversitydatakids.org/dataset/coi20-child-opportunity-index-2-0-database
 
 
 5. BRFSS data
