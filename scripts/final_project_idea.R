@@ -13,11 +13,11 @@ getwd()
 set.seed(20200304)
 
 
-county15 <- read.csv("E:/UO/R Projects/dissertation/county_data/county15_sub.csv")
-county16 <- read.csv("E:/UO/R Projects/dissertation/county_data/county16_sub.csv")
-county17 <- read.csv("E:/UO/R Projects/dissertation/county_data/county17_sub.csv")
-county18 <- read.csv("E:/UO/R Projects/dissertation/county_data/county18_sub.csv")
-county19 <- read.csv("E:/UO/R Projects/dissertation/county_data/county19_sub.csv")
+county15 <- read.csv("E:/UO/R Projects/dissertation/final_data/county15_sub.csv")
+county16 <- read.csv("E:/UO/R Projects/dissertation/final_data/county16_sub.csv")
+county17 <- read.csv("E:/UO/R Projects/dissertation/final_data/county17_sub.csv")
+county18 <- read.csv("E:/UO/R Projects/dissertation/final_data/county18_sub.csv")
+county19 <- read.csv("E:/UO/R Projects/dissertation/final_data/county19_sub.csv")
 city500 <- read_csv('E:/UO/R Projects/dissertation/data/500_Cities__Local_Data_for_Better_Health__2019_release.csv')
 
 
