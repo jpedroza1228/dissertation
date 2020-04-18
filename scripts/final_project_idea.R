@@ -174,15 +174,15 @@ english %>%
 latino <- county %>% 
   filter(year == 2016 |
            year == 2020) %>% 
-  group_by(year, state) %>% 
+  group_by(year, state, county_name) %>% 
   summarize(mean_lat = mean(percent_hispanic)) %>% 
   ungroup()
 
 latino %>% 
-  ggplot(aes(fct_reorder(state, mean_lat), mean_lat)) +
-  geom_point(color = 'dodgerblue') +
+  ggplot(aes(fct_reorder(county_name, mean_lat), mean_lat)) +
+  geom_point(aes(color = as.factor(year))) +
   coord_flip() +
-  facet_wrap(~year) +
+  facet_wrap(~state) +
   theme_minimal()
 
 
