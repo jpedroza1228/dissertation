@@ -1,0 +1,451 @@
+---
+title: "Draft of Dissertation"
+author: "JP"
+date: "4/22/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(inspectdf)
+library(psych)
+library(lme4)
+library(lmerTest)
+library(optimx)
+
+options(max.print = 99999)
+options(scipen = 999)
+theme_set(theme_minimal())
+
+
+getwd()
+
+set.seed(04092020)
+```
+
+
+```{r}
+county16 <- read_csv("C:/Users/cpppe/OneDrive/Desktop/github shared projects/dissertation/final_data/county16_sub.csv")
+county17 <- read_csv("C:/Users/cpppe/OneDrive/Desktop/github shared projects/dissertation/final_data/county17_sub.csv")
+county18 <- read_csv("C:/Users/cpppe/OneDrive/Desktop/github shared projects/dissertation/final_data/county18_sub.csv")
+county19 <- read_csv("C:/Users/cpppe/OneDrive/Desktop/github shared projects/dissertation/final_data/county19_sub.csv")
+county20 <- read_csv('C:/Users/cpppe/OneDrive/Desktop/github shared projects/dissertation/final_data/county20_sub.csv')
+```
+
+```{r}
+county16_sub <- county16[, -which(colMeans(is.na(county16)) >= 0.40)]
+county17_sub <- county17[, -which(colMeans(is.na(county17)) >= 0.40)]
+county18_sub <- county18[, -which(colMeans(is.na(county18)) >= 0.40)]
+county19_sub <- county19[, -which(colMeans(is.na(county19)) >= 0.40)]
+county20_sub <- county20[, -which(colMeans(is.na(county20)) >= 0.40)]
+
+county <- full_join(county16_sub, county17_sub)
+county <- full_join(county, county18_sub)
+county <- full_join(county, county19_sub)
+county <- full_join(county, county20_sub)
+
+county %>% 
+  inspect_na() %>% 
+  show_plot()
+
+county <- county[, -which(colMeans(is.na(county)) >= .25)]
+
+county %>% 
+  names()
+
+county <- county %>% 
+  dplyr::select(rowid,
+                state_fips_code:release_year,
+                poor_or_fair_health:access_to_exercise_opportunities,
+                preventable_hospital_stays,
+                some_college:driving_alone_to_work,
+                food_insecurity:uninsured_children,
+                median_household_income:percent_rural) %>% 
+  rename(state = state_abbreviation,
+         year = release_year)
+
+county %>% 
+  inspect_na() %>% 
+  show_plot()
+
+county <- county %>% 
+  dplyr::select(-percent_non_hispanic_african_american,
+                -percent_american_indian_and_alaskan_native,
+                -motor_vehicle_crash_deaths,
+                -residential_segregation_non_white_white)
+
+county <- county %>% 
+  mutate(phyact_percent = (physical_inactivity*100),
+         ltpa_percent = (100 - phyact_percent)) %>% 
+  rename(access_pa = access_to_exercise_opportunities)
+```
+
+# Dissertation Draft
+
+## Introduction
+
+### Opening Paragraph
+- 
+
+
+Research Questions
+
+Hypotheses
+
+Method
+
+Participants
+The units of measurement for the current proposal are all counties in the United States (N = 3193). Data were gathered from the County Health Rankings & Roadmaps (https://www.countyhealthrankings.org/), a collaborative effort between the Robert Wood Johnson Foundation and the University of Wisconsin’s Population Health Institute. Specifically, the data included in the present study were gathered in the years 2016-2020.
+
+Measures
+
+Independent Variable
+
+Access to Physical Activity Opportunities. Data from business analyst, delorme map data, ESRI, and United States Census Tigerline Files from 2010, 2012, and 2019 were used to measure access to physical activity opportunities. While the variable in the County Health Rankings & Roadmaps is referred to as access to exercise opportunities, this study will refer to the measure as access to physical activity opportunities to remain consistent with how the variable was measured. Locations for physical activity were defined as parks or recreational facilities. Physical activity opportunities were considered accessible if individuals lived: 1) in a census block that was within a half mile of a park, 2) in an urban census block that is within one mile of a recreational facility, or 3) in a rural census block that is within three miles of a recreational facility. The values were calculated from the 2010 household population living in census blocks with adequate access to at least one location for physical activity. Adequate access was defined as census blocks where the border is a half-mile or less from a park, or 1 mile or less from a recreational facility in urban census blocks and 3 miles or less in rural census blocks from 2012 to 2018. The manner in which data were collected changed in 2018, from the North American Information Classification System (NAICS) codes to Standard Industry Classification (SIC) codes due to lack of availability of a nationally reliable and updated data source. The County Health Rankings & Roadmaps’ datasets that corresponds to the data were from the 2016-2020 datasets.
+
+Dependent Variable
+
+Leisure-Time Physical Activity. Physical activity data were collected from the Behavioral Risk Factor Surveillance Survey from 2012 to 2016. The data were aggregated in the CDC’s Diabetes Interactive Atlas until 2016, when the data were aggregated using the United States Diabetes Surveillance System. Both were measured by calculating the number of individuals that didn’t engage in physical activities by the number of Behavioral Risk Factor Surveillance Survey participants. Leisure-time physical activity is the percentage of adults (≥20years) whot reported participating in any physical activity in the past month. Individuals were asked “During the past month, other than your regular job, did you participate in any physical activities or exercises such as running, calisthenics, golf, gardening, or walking for exercise?” Response options included: ….The County Health Rankings & Roadmaps originally operationalized this variable as county-level physical inactivity, however, to increase clarity for this study, the percentage of physical inactivity was subtracted from 100 percent to indicate the percentage of county residents who have engaged in any physical activity in the past month instead. The County Health Rankings & Roadmaps’ datasets that correspond to the Behavioral Risk Factor Surveillance Survey data from 2012 to 2016 were from the 2016-2020 datasets.
+
+Hypothesized Moderator Variable 
+
+County-level Percentage of Latino Residents. The percentage of Latinos was collected from Census Population Estimates from 2014 to 2018. Population estimates are calculated using the following equation: Population Base + Births – Deaths + Migration = Population Estimate. While the County Health Rankings & Roadmaps refers to Latinos as Hispanics, the change in wording is to be more inclusive of all individuals of Latin descent. Latinos included any individual that “identify themselves as Mexican, Puerto Rican, Cuban, Central or South American, other Hispanic, or Hispanic of unknown origin” (County Health Rankings Technical Notes and Glossary of Terms). The County Health Rankings & Roadmaps’ datasets that corresponds to the 2014-2018 Census Population Estimates data were from the 2016-2020 datasets.
+
+Covariates
+
+Adult Obesity. Obesity data were collected from the Behavioral Risk Factor Surveillance Survey and aggregated in the CDC’s Diabetes Interactive Atlas for 2012-2016. Obesity was measured by the percentage of the adult population (≥20 years) who report a body mass index (BMI) greater than or equal to 30 kg/m2. Through self-reported height and weight, BMIs for individuals were calculated. The County Health Rankings & Roadmaps’ datasets that corresponds to this study were the 2016-2020 datasets.
+
+Education. Education is measured by the percentage of the population, ages 25-44 years old, that have some college or other post-secondary education. These individuals include those that attained post-high school education, even if they did not obtain a college degree. Data were collected from the American Community Survey from 2010-2018. The County Health Rankings & Roadmaps’ datasets that corresponds to this data were the 2016-2020 datasets.
+
+Income Inequality. Income inequality is the ratio of household income at the 80th percentile to that at the 20th percentile, i.e., when the incomes of all households in a county are listed from highest to lowest, the 80th percentile is the level of income at which only 20% of households have higher incomes, and the 20th percentile is the level of income at which only 20% of households have lower incomes. A higher inequality ratio indicates greater division between the top and bottom ends of the income spectrum. Data were collected from the American Community Survey from 2010-2018. The County Health Rankings & Roadmaps’ datasets that corresponds to this data were the 2016-2020 datasets.
+
+Violent Crime Rates. Violent crime is the number of violent crimes reported per 100,000 population. Rates measure the number of events (i.e., deaths, births, etc.) in a given time period (generally one or more years) divided by the average number of people at risk during that period. Violent crime rates were collected from the FBI’s Uniform Crime Reporting Program, and reflect crimes reported to police in counties that are then reported to the FBI. The County Health Rankings & Roadmaps’ datasets that corresponds to this data were the 2016-2020 datasets.
+
+Air Pollution. Using CDC’s WONDER Environmental data from 2011-2014, air pollution was measured through estimates of the average annual concentration of fine particulate pollution in each county. These estimates are based on seasonal averages. It reports the average daily density of fine particulate matter in micrograms per cubic meter. Fine particulate matter is defined as particles of air pollutants with an aerodynamic diameter less than 2.5 micrometers (PM2.5). The County Health Rankings & Roadmaps’ datasets that corresponds to this data were the 2016-2020 datasets.
+
+Driving Alone to Work. Driving alone to work is the percentage of the workforce that usually drives alone to work from the American Community Survey during 2010-2018. The County Health Rankings & Roadmaps’ datasets that corresponds to this data were the 2016-2020 datasets.
+
+Percent Rurality. Percent rurality was based on census population estimates from 2010 of counties that were considered rural. The County Health Rankings & Roadmaps’ datasets that corresponds to this data were the 2016-2020 datasets.
+
+Analytic Plan
+
+All analyses for the present study will be conducted in R (R Core Team, 2020), using the following packages: lme4 (Bates, Maechler, Bolker, & Walker, 2015, lmerTest (Kuznetsova, Brockhoff, & RHB, 2017, and optimx (Nash & Varadhan, 2011. Missing data were minimal for leisure-time physical activity and access to physical activity opportunities (both <1%), while there was slightly more missing values for violent crime (5.61%). Missing data will be addressed using multiple imputation, which has been found to be useful for multilevel modeling (Grund, Ludtke, & Robitzsch, 2018). All multi-level models were random-intercept models, which examines the variation in the outcome between counties. Models were two-level models, which had time (level 1) nested in counties (level 2). In order to examine whether specific changes in the models (i.e., including covariates, random effects) are significantly different from previous models, likelihood ratio tests will be conducted. These tests will suggest which model is best in interpreting the findings of this study. When conducting the likelihood ratio tests, maximum likelihood estimates will be used to compare models.
+
+## Descriptive Statistics
+```{r}
+county %>% 
+  dplyr::select(adult_obesity,
+                access_pa,
+                some_college,
+                income_inequality,
+                violent_crime,
+                air_pollution_particulate_matter,
+                median_household_income,
+                population,
+                driving_alone_to_work,
+                percent_rural,
+                percent_hispanic,
+                ltpa_percent) %>% 
+  describe(na.rm = TRUE)
+
+by_state <- county %>% 
+  dplyr::select(state_fips_code,
+                adult_obesity,
+                access_pa,
+                some_college,
+                income_inequality,
+                violent_crime,
+                air_pollution_particulate_matter,
+                median_household_income,
+                population,
+                driving_alone_to_work,
+                percent_rural,
+                percent_hispanic,
+                ltpa_percent) 
+
+# by_state %>% 
+#   nest(-state_fips_code) %>% 
+#   map_dbl(~summarize(mean_value = mean(median_household_income), .x))
+
+describeBy(by_state, by_state$state_fips_code, na.rm = TRUE)
+```
+
+
+
+Two preliminary unconditional growth models were conducted to examine the change in leisure-time physical activity engagement and leisure-time physical activity from the County Health Rankings & Roadmaps data from 2016-2020. Both models examine how the constructs change over time overall for the United States, while the random effect of the variation between counties is not of interest for the research questions/hypotheses. 
+
+## Leisure-time Physical Activity Model
+
+$$ Level 1: LTPA_{tij} = \beta_{0ij} + \beta_{1i}(year_{tij}) + \epsilon_{0tij} $$
+
+$$ Level 2: \beta_{0ij} = \beta_{0j} + \mu_{0ij}  $$
+
+$$ Level 3: \beta_{0j} = \beta_{0} + \nu_{0j}  $$
+
+$$ Combined: LTPA_{tij} = \beta_0 + \beta_{1}(year_{tij}) + \mu_{0i}(year_{0tij}) + \epsilon_{0tij} $$
+
+$$ Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0}) $$
+
+
+$$ Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0}) $$
+
+
+$$ Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})  $$
+
+## Access Null Model
+
+$$ Level 1: AccessPA_{tij} = \beta_{0ij} + \beta_{1i}(year_{tij}) + \epsilon_{0tij} $$
+
+$$ Level 2: \beta_{0ij} = \beta_{0j} + \mu_{0ij}  $$
+
+$$ Level 3: \beta_{0j} = \beta_{0} + \nu_{0j}  $$
+
+$$ Combined: AccessPA_{tij} = \beta_0 + \beta_{1}(year_{tij}) + \mu_{0i}(year_{0tij}) + \epsilon_{0tij} $$
+
+$$ Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0}) $$
+
+
+$$ Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0}) $$
+
+
+$$ Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})  $$
+
+After examining the unconditional growth models, a conditional growth model was tested examining the overall associations between empirically relevant covariates and leisure-time physical activity. Specifically, the covariates include county-level percentage of adult with obesity, percentage of individuals within each county with some college experience, income inequality or the difference between incomes at the 80th percentile and 20th percentile in each county, the number of violent crimes reported per 100,000 individuals, the annual concentration of fine particulate pollution in each county, the percentage of individuals that usually drive to work, the percentage of counties that are considered rural. A significant likelihood ratio test comparing the unconditional growth model to this conditional growth model suggests that the inclusion of covariates leads to a more accurate model. 
+
+## Controls Only Model
+
+$$ Level 1: LTPA_{tij} = \beta_{0ij} + \beta_{1i}(year_{tij}) + \epsilon_{0tij} $$
+
+$$ Level 2: \beta_{0ij} = \beta_{0j} + \beta_{2}(ViolentCrime_{ij})+ \beta_{3}(Obesity_{ij}) + \beta_{4}(SomeCollege_{ij}) + \beta_{5}(IncomeInequality_{ij}) + \beta_{6}(AirPollution_{ij}) + \beta_{7}(DrivingAlone_{ij}) + \beta_{8}(Rurality_{ij}) + \mu_{0ij} $$
+
+$$ Level 3: \beta_{0j} = \beta_{0} + \nu_{0j}  $$
+
+$$ Combined: LTPA_{tij} = \beta_0 + \beta_{1i}(year_{tij}) + \beta_{2}(ViolentCrime_{ij})+ \beta_{3}(Obesity_{ij}) + \beta_{4}(SomeCollege_{ij}) + \beta_{5}(IncomeInequality_{ij}) + \beta_{6}(AirPollution_{ij}) + \beta_{7}(DrivingAlone_{ij}) + \beta_{8}(Rurality_{ij}) + \nu_{0j}(year_{0tij}) + \mu_{0ij}(year_{0tij}) + \epsilon_{0tij} $$
+
+$$ Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0}) $$
+
+$$ Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0}) $$
+
+$$ Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})  $$
+
+The following growth model tested to see if the inclusion of access to physical activity opportunities made a significantly more accurate model. 
+
+## Access Predictor Included
+
+$$ Level 1: LTPA_{tij} = \beta_{0ij} + \beta_{1i}(year_{tij}) + \epsilon_{0tij} $$
+
+$$ Level 2: \beta_{0ij} = \beta_{0j} + \beta_{2}(ViolentCrime_{ij})+ \beta_{3}(Obesity_{ij}) + \beta_{4}(SomeCollege_{ij}) + \beta_{5}(IncomeInequality_{ij}) + \beta_{6}(AirPollution_{ij}) + \beta_{7}(DrivingAlone_{ij}) + \beta_{8}(Rurality_{ij}) + \beta_{9}(AccessPA_{ij}) + \mu_{0ij} $$
+
+$$ Level 3: \beta_{0j} = \beta_{0} + \nu_{0j}  $$
+
+$$ Combined: LTPA_{tij} = \beta_0 + \beta_{1i}(year_{tij}) + \beta_{2}(ViolentCrime_{ij})+ \beta_{3}(Obesity_{ij}) + \beta_{4}(SomeCollege_{ij}) + \beta_{5}(IncomeInequality_{ij}) + \beta_{6}(AirPollution_{ij}) + \beta_{7}(DrivingAlone_{ij}) + \beta_{8}(Rurality_{ij}) + \beta_{9}(AccessPA_{ij}) + \nu_{0j}(year_{0tij}) + \mu_{0ij}(year_{0tij}) + \epsilon_{0tij} $$
+
+$$ Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0}) $$
+
+$$ Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0}) $$
+
+$$ Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})  $$
+
+The following growth model tested to see if the inclusion of access to physical activity opportunities made a significantly more accurate model. 
+
+$$ Level 1: LTPA_{tij} = \beta_{0ij} + \beta_{1}(time_{tij}) + \epsilon_{0tij}  $$
+
+$$ Level 2: \beta_{0ij} = \beta_{0j} + \beta_{2}(ViolentCrime_{ij})+ \beta_{3}(Obesity_{ij}) + \beta_{4}(SomeCollege_{ij}) + \beta_{5}(IncomeInequality_{ij}) + \beta_{6}(AirPollution_{ij}) + \beta_{7}(DrivingAlone_{ij}) + \beta_{8}(Rurality_{ij}) + \beta_{9}(AccessPA_{ij}) + \mu_{0ij} $$
+
+$$ Level 2 slope: \beta_{1ij} = \beta_{1j} + \mu_{1ij}   $$
+
+$$ Level 3: \beta_{0j} = \beta_0 + \nu_{0j} $$
+
+$$ Level 3 slope: \beta_{1j} = \beta_1 + \nu_{1j} $$
+
+$$ Combined: LTPA_{tij} = \beta_0 + \beta_{1}(time_{tij}) + \beta_{2}(ViolentCrime_{ij})+ \beta_{3}(Obesity_{ij}) + \beta_{4}(SomeCollege_{ij}) + \beta_{5}(IncomeInequality_{ij}) + \beta_{6}(AirPollution_{ij}) + \beta_{7}(DrivingAlone_{ij}) + \beta_{8}(Rurality_{ij}) + \beta_{9}(AccessPA_{ij}) + \nu_{0j} + \nu_{1j}(time_{tij}) + \mu_{0ij} + \mu_{1ij}(time_{tij}) + \epsilon_{0tij} $$
+
+$$ Level 3: 
+\left[\begin{array}{cc} 
+\nu_{0j}\\
+\nu_{1j}
+\end{array}\right] 
+\sim N  
+\left(\begin{array}{cc}
+0,
+\left[\begin{array}{cc}
+\sigma^2_{v0} &  \\ 
+\sigma_{v0v1} = 0 & \sigma^2_{v1}
+\end{array}\right]
+\end{array}\right) $$ 
+
+$$ Level 2:
+\left[\begin{array}{cc} 
+\mu_{0ij}\\
+\mu_{1ij}
+\end{array}\right] 
+\sim N  
+\left(\begin{array}{cc}
+0,
+\left[\begin{array}{cc}
+\sigma^2_{u0} &  \\ 
+\sigma_{u0u1} = 0 & \sigma^2_{u1}
+\end{array}\right]
+\end{array}\right) $$ 
+
+
+$$ Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})  $$
+
+Results
+
+Descriptives
+
+Preliminary Findings
+
+```{r preliminary physical activity, echo = TRUE, eval = FALSE}
+# names(county)
+
+preliminary_ltpa_long <- lmer(ltpa_percent ~ year + (1 | state_fips_code) + (1 | state_fips_code:county_fips_code), 
+                       data = county,
+                       REML = FALSE,
+                    control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(preliminary_ltpa_long)
+
+VarCorr(preliminary_ltpa_long)
+ltpa_null_icc <- as.tibble(VarCorr(preliminary_ltpa_long))
+ltpa_null_icc
+
+total_icc <- function(df){
+  between <- df[1, 4] + df[2, 4]
+  total <- df[1, 4] + df[2, 4] + df[3, 4]
+  
+  between/total
+}
+
+state_icc <- function(df){
+  between <- df[2, 4]
+  total <- df[1, 4] + df[2, 4] + df[3, 4]
+  
+  between/total
+}
+
+county_state_icc <- function(df){
+  between <- df[1, 4]
+  total <- df[1, 4] + df[2, 4] + df[3, 4]
+  
+  between/total
+}
+
+total_icc(ltpa_null_icc)
+state_icc(ltpa_null_icc)
+county_state_icc(ltpa_null_icc)
+
+performance::icc(preliminary_ltpa_long)
+
+preliminary_access_pa_long <- lmer(access_pa ~ year + (1 | state_fips_code) + (1 | state_fips_code:county_fips_code), 
+                       data = county,
+                       REML = FALSE,
+                    control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(preliminary_access_pa_long)
+
+access_null_icc <- as.tibble(VarCorr(preliminary_access_pa_long))
+
+total_icc(access_null_icc)
+state_icc(access_null_icc)
+county_state_icc(access_null_icc)
+
+```
+
+Main Findings
+
+```{r access longitudinal with controls, echo = TRUE, eval = FALSE}
+ltpa_long_controls <- lmer(ltpa_percent ~ year + violent_crime +
+                                  adult_obesity + some_college +
+                                  income_inequality + air_pollution_particulate_matter +
+                                  driving_alone_to_work + percent_rural +
+                                  (1 | state_fips_code) + (1 | state_fips_code:county_fips_code), 
+                       data = county,
+                       REML = FALSE,
+                    control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(ltpa_long_controls)
+
+
+# anova(preliminary_ltpa_long, ltpa_long_controls)
+
+
+access_long_controls <- lmer(access_pa ~ year + violent_crime + median_household_income + percent_rural + population + (1 | state_fips_code) + (1 | state_fips_code:county_fips_code), 
+                       data = county,
+                       REML = FALSE,
+                    control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(access_long_controls)
+
+# anova(preliminary_access_pa_long, access_long_controls)
+```
+
+```{r physical activity included, echo = TRUE, eval = FALSE}
+
+ltpa_long_access <- lmer(ltpa_percent ~ year + violent_crime +
+                                  adult_obesity + some_college +
+                                  income_inequality + air_pollution_particulate_matter +
+                                  driving_alone_to_work + percent_rural + 
+                                  access_pa + (1 | state_fips_code) + (1 | state_fips_code:county_fips_code), 
+                       data = county,
+                       REML = FALSE,
+                    control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(ltpa_long_access)
+
+anova(ltpa_long_controls, ltpa_long_access)
+
+
+access_long_latino <- lmer(access_pa ~ year + violent_crime + median_household_income + percent_rural + population + percent_hispanic + 
+                                  (1 | state_fips_code) + (1 | state_fips_code:county_fips_code), 
+                       data = county,
+                       REML = FALSE,
+                    control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(access_long_latino)
+
+anova(access_long_controls, access_long_latino)
+```
+
+```{r physical activity included, echo = TRUE, eval = FALSE}
+
+ltpa_long_access_random <- lmer(ltpa_percent ~ year + violent_crime +
+                                  adult_obesity + some_college +
+                                  income_inequality + air_pollution_particulate_matter +
+                                  driving_alone_to_work + percent_rural + 
+                                  access_pa + (year || state_fips_code) + (year || state_fips_code:county_fips_code), 
+                       data = county,
+                       REML = FALSE,
+                    control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(ltpa_long_access_random)
+
+anova(ltpa_long_access, ltpa_long_access_random)
+
+
+access_long_latino_random <- lmer(access_pa ~ year + violent_crime + median_household_income + percent_rural + population + percent_hispanic + 
+                                  (percent_hispanic || state_fips_code) + (percent_hispanic || state_fips_code:county_fips_code), 
+                       data = county,
+                       REML = FALSE,
+                    control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(access_long_latino_random)
+
+anova(access_long_latino, access_long_latino_random)
+
+```
+
+
+Discussion
+
+Limitations
+
+References
+
+Tables & Figures
+

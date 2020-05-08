@@ -1,0 +1,317 @@
+---
+title: "Notes for Atika"
+author: "Jonathan A. Pedroza"
+date: "4/17/2020"
+output:
+  word_document: default
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data Manipulation & Proposed Models
+```{r package and other specs, include = FALSE}
+
+library(tidyverse)
+library(inspectdf)
+library(psych)
+library(lme4)
+library(lmerTest)
+library(optimx)
+
+options(max.print = 99999)
+options(scipen = 999)
+theme_set(theme_minimal())
+
+
+getwd()
+
+set.seed(04092020)
+```
+
+```{r data upload, echo = FALSE, eval = TRUE}
+
+county16 <- read_csv("C:/Users/cpppe/OneDrive/Desktop/github shared projects/dissertation/final_data/county16_sub.csv")
+county17 <- read_csv("C:/Users/cpppe/OneDrive/Desktop/github shared projects/dissertation/final_data/county17_sub.csv")
+county18 <- read_csv("C:/Users/cpppe/OneDrive/Desktop/github shared projects/dissertation/final_data/county18_sub.csv")
+county19 <- read_csv("C:/Users/cpppe/OneDrive/Desktop/github shared projects/dissertation/final_data/county19_sub.csv")
+county20 <- read_csv('C:/Users/cpppe/OneDrive/Desktop/github shared projects/dissertation/final_data/county20_sub.csv')
+```
+
+```{r data reduction, echo = FALSE, eval = TRUE}
+
+county16_sub <- county16[, -which(colMeans(is.na(county16)) >= 0.40)]
+county17_sub <- county17[, -which(colMeans(is.na(county17)) >= 0.40)]
+county18_sub <- county18[, -which(colMeans(is.na(county18)) >= 0.40)]
+county19_sub <- county19[, -which(colMeans(is.na(county19)) >= 0.40)]
+county20_sub <- county20[, -which(colMeans(is.na(county20)) >= 0.40)]
+
+county <- full_join(county16_sub, county17_sub)
+county <- full_join(county, county18_sub)
+county <- full_join(county, county19_sub)
+county <- full_join(county, county20_sub)
+
+county %>% 
+  inspect_na() %>% 
+  show_plot()
+
+county <- county[, -which(colMeans(is.na(county)) >= .25)]
+
+county %>% 
+  names()
+
+county <- county %>% 
+  dplyr::select(rowid,
+                state_fips_code:release_year,
+                poor_or_fair_health:access_to_exercise_opportunities,
+                preventable_hospital_stays,
+                some_college:driving_alone_to_work,
+                food_insecurity:uninsured_children,
+                median_household_income:percent_rural) %>% 
+  rename(state = state_abbreviation,
+         year = release_year)
+
+county %>% 
+  inspect_na() %>% 
+  show_plot()
+
+county <- county %>% 
+  dplyr::select(-percent_non_hispanic_african_american,
+                -percent_american_indian_and_alaskan_native,
+                -motor_vehicle_crash_deaths,
+                -residential_segregation_non_white_white)
+
+county <- county %>% 
+  mutate(phyact_percent = (physical_inactivity*100),
+         ltpa_percent = (100 - phyact_percent)) %>% 
+  rename(access_pa = access_to_exercise_opportunities)
+```
+
+# Data Descriptives 
+
+Notes: 
+[rpsychologist multi-level modeling, including growth models](https://rpsychologist.com/r-guide-longitudinal-lme-lmer)
+[penn state's growth models basics](https://rpsychologist.com/r-guide-longitudinal-lme-lmer)
+
+1. Look into the change of access to physical activity opportunities over time.
+```{r, echo = FALSE, eval = TRUE}
+county %>% 
+  drop_na() %>% 
+  ggplot(aes(access_pa*100)) +
+  geom_histogram(color = 'white', fill = 'dodgerblue', bins = 20) +
+  facet_wrap(~year) +
+  labs(x = 'Access to Physical Activity Opportunities Percentage',
+       y = 'Count',
+       title = 'Count of Access to Physical Activity Opportunities')
+
+county %>% 
+  drop_na() %>% 
+  group_by(year) %>% 
+  mutate(access_percent = access_pa*100) %>% 
+  summarize(mean_percent = mean(access_percent)) %>% 
+  ggplot(aes(year, mean_percent)) +
+  geom_line(color = 'dodgerblue', size = 1) +
+  geom_point() + 
+  scale_y_continuous(name = 'Access (%)',
+                     limits = c(60, 70))
+
+```
+
+2. Look into the chnage of leisure-time physical activity engagement over time.
+```{r, echo = FALSE, eval = TRUE}
+# View(county)
+
+county %>% 
+  drop_na() %>% 
+  ggplot(aes(ltpa_percent)) +
+  geom_histogram(color = 'white', fill = 'dodgerblue', bins = 20) +
+  facet_wrap(~year) +
+  labs(x = 'Leisure Time Physical Activity Engagement',
+       y = 'Count',
+       title = 'Count of Leisure Time Physical Activity Engagement')
+
+county %>% 
+  drop_na() %>% 
+  group_by(year) %>% 
+  summarize(mean_percent = mean(ltpa_percent)) %>% 
+  ggplot(aes(year, mean_percent)) +
+  geom_line(color = 'dodgerblue', size = 1) +
+  geom_point() +
+  scale_y_continuous(name = 'Leisure-Time Physical Activity (%)',
+                     limits = c(70, 80))
+```
+
+3. Look into the role of percent latino
+```{r, echo = FALSE, eval = TRUE}
+# names(county)
+
+# describeBy(county$percent_hispanic, group = county$year)
+
+county$latino_group <- cut(county$percent_hispanic, breaks = 3)
+
+county %>% 
+  group_by(year) %>% 
+  count(latino_group)
+
+county %>% 
+  dplyr::select(year, percent_hispanic, access_pa, ltpa_percent, latino_group) %>% 
+  drop_na() %>% 
+  group_by(year) %>% 
+  mutate(access_percent = access_pa*100,
+         latino_percent = percent_hispanic*100) %>%
+  ggplot(aes(access_percent, ltpa_percent)) +
+  # geom_point(color = 'gray70', alpha = .9) + 
+  geom_smooth(method = 'lm', se = FALSE, aes(color = latino_group)) +
+  facet_wrap(~year)
+
+```
+
+
+3. Z-score and make everything into percentages for analyses
+```{r}
+
+```
+
+4. Write out model equations.
+```{r preliminary physical activity, echo = TRUE, eval = FALSE}
+# names(county)
+
+preliminary_ltpa_long <- lmer(ltpa_percent ~ year + (1|county_fips_code), 
+                       data = county,
+                       REML = FALSE,
+                    control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(preliminary_ltpa_long)
+
+anova(preliminary_ltpa_long, preliminary_ltpa_long_3)
+# physical activity over time (random effect of counties)
+```
+
+$$ Fixed Effect: LTPA_{ti} = \beta_{0i} + \beta_{1i}(year_{ti}) + \epsilon_{0ti} $$
+
+$$ Random Effect: \beta_{0i} = \beta_0 + \mu_{0i}  $$
+
+$$ Combined: LTPA_{ti} = \beta_0 + \beta_{1}(year_{ti}) + \mu_{0i}(year_{0ti}) + \epsilon_{0ti} $$
+
+$$ Level 2: [\mu_{0i}] \sim N(0, \sigma^2_{\mu0}) $$
+
+$$ Level 1: [\epsilon_{0ti}] \sim N(0,\sigma^2_{\epsilon0}) $$
+
+```{r preliminary access, echo = TRUE, eval = FALSE}
+
+preliminary_access_pa_long <- lmer(access_pa ~ year + (1|county_fips_code), 
+                       data = county,
+                       REML = FALSE,
+                    control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(preliminary_access_pa_long)
+
+anova(preliminary_access_pa_long, preliminary_access_pa_long_3)
+# access to physical activity over time (random effect of counties)
+
+```
+
+$$ Fixed Effect: AccessPA_{ti} = \beta_{0i} + \beta_{1i}(year_{ti}) + \epsilon_{0ti} $$
+
+$$ Random Effect: \beta_{0i} = \beta_0 + \mu_{0i}  $$
+
+$$ Combined: AccessPA_{ti} = \beta_0 + \beta_{1}(year_{ti}) + \mu_{0i}(year_{0ti}) + \epsilon_{0ti} $$
+
+$$ Level 2: [\mu_{0i}] \sim N(0, \sigma^2_{\mu0}) $$
+
+$$ Level 1: [\epsilon_{0ti}] \sim N(0,\sigma^2_{\epsilon0}) $$
+
+```{r access longitudinal with controls, echo = TRUE, eval = FALSE}
+# names(county)
+
+ltpa_long_controls <- lmer(ltpa_percent ~ year + violent_crime +
+                                  adult_obesity + some_college +
+                                  income_inequality + air_pollution_particulate_matter +
+                                  driving_alone_to_work + percent_rural +
+                                  (1|county_fips_code), 
+                       data = county,
+                       REML = FALSE,
+                    control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(ltpa_long_controls)
+
+
+anova(preliminary_ltpa_long, ltpa_long_controls)
+```
+
+$$ Fixed Effect: AccessPA_{ti} = \beta_{0i} + \beta_{1i}(Year_{ti}) + \beta_{2i}(ViolentCrime_{ti})+ \beta_{3i}(Obesity_{ti}) + \beta_{4i}(SomeCollege_{ti}) + \beta_{5i}(IncomeInequality_{ti}) + \beta_{6i}(AirPollution_{ti}) + \beta_{7i}(DrivingAlone_{ti}) + \beta_{8i}(Rurality_{ti}) + \epsilon_{0ti} $$
+
+$$ Random Effect: \beta_{0i} = \beta_0 + \mu_{0i}  $$
+
+$$ Combined: AccessPA_{ti} = \beta_0 + \beta_{1}(year_{ti}) + \beta_{2}(ViolentCrime_{ti})+ \beta_{3}(Obesity_{ti}) + \beta_{4}(SomeCollege_{ti}) + \beta_{5}(IncomeInequality_{ti}) + \beta_{6}(AirPollution_{ti}) + \beta_{7}(DrivingAlone_{ti}) + \beta_{8}(Rurality_{ti}) + \mu_{0i}(year_{0ti}) + \epsilon_{0ti} $$
+
+$$ Level 2: [\mu_{0i}] \sim N(0, \sigma^2_{\mu0}) $$
+
+$$ Level 1: [\epsilon_{0ti}] \sim N(0,\sigma^2_{\epsilon0}) $$
+
+```{r physical activity included, echo = TRUE, eval = FALSE}
+
+ltpa_long_access <- lmer(ltpa_percent ~ year + violent_crime +
+                                  adult_obesity + some_college +
+                                  income_inequality + air_pollution_particulate_matter +
+                                  driving_alone_to_work + percent_rural + 
+                                  access_pa + (1|county_fips_code), 
+                       data = county,
+                       REML = FALSE,
+                    control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(ltpa_long_access)
+
+anova(ltpa_long_controls, ltpa_long_access)
+```
+
+$$ Fixed Effect: AccessPA_{ti} = \beta_{0i} + \beta_{1i}(Year_{ti}) + \beta_{2i}(ViolentCrime_{ti})+ \beta_{3i}(Obesity_{ti}) + \beta_{4i}(SomeCollege_{ti}) + \beta_{5i}(IncomeInequality_{ti}) + \beta_{6i}(AirPollution_{ti}) + \beta_{7i}(DrivingAlone_{ti}) + \beta_{8i}(Rurality_{ti}) + \beta_{9i}(LTPA_{ti}) + \epsilon_{0ti} $$
+
+$$ Random Effect: \beta_{0i} = \beta_0 + \mu_{0i}  $$
+
+$$ Combined: AccessPA_{ti} = \beta_0 + \beta_{1}(year_{ti}) + \beta_{2}(ViolentCrime_{ti})+ \beta_{3}(Obesity_{ti}) + \beta_{4}(SomeCollege_{ti}) + \beta_{5}(IncomeInequality_{ti}) + \beta_{6}(AirPollution_{ti}) + \beta_{7}(DrivingAlone_{ti}) + \beta_{8}(Rurality_{ti}) + \beta_{9}(LTPA_{ti}) + \mu_{0i}(year_{0ti}) + \epsilon_{0ti} $$
+
+$$ Level 2: [\mu_{0i}] \sim N(0, \sigma^2_{\mu0}) $$
+
+$$ Level 1: [\epsilon_{0ti}] \sim N(0,\sigma^2_{\epsilon0}) $$
+
+```{r interaction, echo = TRUE, eval = FALSE}
+access_latino_int <- lmer(ltpa_percent ~ year + violent_crime +
+                                  adult_obesity + some_college +
+                                  income_inequality + air_pollution_particulate_matter +
+                                  driving_alone_to_work + percent_rural + 
+                                  access_pa*percent_hispanic + (1|county_fips_code), 
+                       data = county,
+                       REML = FALSE,
+                    control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(access_latino_int)
+
+
+anova(ltpa_long_access, access_latino_int)
+```
+
+$$ Fixed Effect: AccessPA_{ti} = \beta_{0i} + \beta_{1i}(Year_{ti}) + \beta_{2i}(ViolentCrime_{ti})+ \beta_{3i}(Obesity_{ti}) + \beta_{4i}(SomeCollege_{ti}) + \beta_{5i}(IncomeInequality_{ti}) + \beta_{6i}(AirPollution_{ti}) + \beta_{7i}(DrivingAlone_{ti}) + \beta_{8i}(Rurality_{ti}) + \beta_{9i}(LTPA_{ti}) + \beta_{10i}(LatinoPercent_{ti}) + \beta_{11i}(LTPA*LatinoPercent_{ti}) + \epsilon_{0ti} $$
+
+$$ Random Effect: \beta_{0i} = \beta_0 + \mu_{0i}  $$
+
+$$ Combined: AccessPA_{ti} = \beta_0 + \beta_{1}(year_{ti}) + \beta_{2}(ViolentCrime_{ti})+ \beta_{3}(Obesity_{ti}) + \beta_{4}(SomeCollege_{ti}) + \beta_{5}(IncomeInequality_{ti}) + \beta_{6}(AirPollution_{ti}) + \beta_{7}(DrivingAlone_{ti}) + \beta_{8}(Rurality_{ti}) + \beta_{9}(LTPA_{ti}) + \beta_{10}(LatinoPercent_{ti}) + \beta_{11}(LTPA*LatinoPercent_{ti}) + \mu_{0i}(year_{0ti}) + \epsilon_{0ti} $$
+
+$$ Level 2: [\mu_{0i}] \sim N(0, \sigma^2_{\mu0}) $$
+
+$$ Level 1: [\epsilon_{0ti}] \sim N(0,\sigma^2_{\epsilon0}) $$
+
+5. Look into times for multiple imputations, since there is over 5% of missing data for 
+```{r}
+
+```
+
+
+
+
+
+
+
+
