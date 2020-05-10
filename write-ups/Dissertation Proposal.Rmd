@@ -152,26 +152,66 @@ county %>%
                 ltpa_percent) %>% 
   describe(na.rm = TRUE)
 
-by_state <- county %>% 
-  dplyr::select(state_fips_code,
-                adult_obesity,
-                access_pa,
-                some_college,
-                income_inequality,
-                violent_crime,
-                air_pollution_particulate_matter,
-                median_household_income,
-                population,
-                driving_alone_to_work,
-                percent_rural,
-                percent_hispanic,
-                ltpa_percent) 
 
-# by_state %>% 
-#   nest(-state_fips_code) %>% 
+# ex <- county %>%
+#     dplyr::select(state_fips_code,
+#                 adult_obesity,
+#                 access_pa,
+#                 some_college,
+#                 income_inequality,
+#                 violent_crime,
+#                 air_pollution_particulate_matter,
+#                 median_household_income,
+#                 population,
+#                 driving_alone_to_work,
+#                 percent_rural,
+#                 percent_hispanic,
+#                 ltpa_percent) %>% 
+#   group_by(state_fips_code) %>% 
+#   nest() %>% 
+#   mutate(mean = map_dbl(data, ~mean(.x)))
+
+
+#   map(~mutate(.x, mean = 
+#   mutate(mean_value = ~map_dbl(mean
 #   map_dbl(~summarize(mean_value = mean(median_household_income), .x))
 
-describeBy(by_state, by_state$state_fips_code, na.rm = TRUE)
+# describeBy(by_state, by_state$state_fips_code, na.rm = TRUE)
+```
+
+```{r}
+names(county)
+# remember to remove estimates for united_states and each state's aggregated estimate
+states <- c('united_states',
+            'Alabama','Alaska','Arizona','Arkansas',
+            'California','Colorado','Connecticut',
+            'Delaware',
+            'Florida',
+            'Georgia',
+            'Hawaii',
+            'Idaho','Illinois','Indiana','Iowa',
+            'Kansas','Kentucky',
+            'Louisiana',
+            'Maine','Maryland','Massachusetts','Michigan','Minnesota','Mississippi','Missouri','Montana',
+            'Nebraska','Nevada','New_Hampshire','New_Jersey','New_Mexico','New_York','North_Carolina','North_Dakota',
+            'Ohio','Oklahoma','Oregon',
+            'Pennsylvania',
+            'Rhode_Island',
+            'South_Carolina','South_Dakota',
+            'Tennessee','Texas',
+            'Utah',
+            'Vermont','Virginia',
+            'Washington','West_Virginia','Wisconsin','Wyoming')
+states <- str_to_lower(states)
+
+class(states)
+
+county_sub <- county %>%
+  filter(!county_name %in% states)
+
+# ex1 <- county %>%
+#   filter(str_detect(county_name, '_county'))
+
 ```
 
 
@@ -298,22 +338,153 @@ $$ Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})  $$
 Results
 
 Descriptives
+```{r}
+names(county_sub)
+
+county_sub <- county_sub %>%
+  dplyr::select(rowid:year,
+                adult_smoking:adult_obesity,
+                physical_inactivity:access_pa,
+                some_college:unemployment,
+                social_associations:violent_crime,
+                air_pollution_particulate_matter,
+                driving_alone_to_work,
+                median_household_income:percent_65_and_older,
+                percent_hispanic,
+                percent_rural:ltpa_percent)
+
+county_analysis <- county_sub %>% 
+  mutate(smoking_percent = adult_smoking*100,
+         obesity_percent = adult_obesity*100,
+         access_pa_percent = access_pa*100,
+         college_percent = some_college*100,
+         unemployment_percent = unemployment*100,
+         driving_alone_percent = driving_alone_to_work*100,
+         percent_65plus = percent_65_and_older*100,
+         latino_percent = percent_hispanic*100,
+         rural_percent = percent_rural*100) %>% 
+  dplyr::select(-adult_smoking,
+                -adult_obesity,
+                -access_pa,
+                -some_college,
+                -unemployment,
+                -driving_alone_to_work,
+                -percent_65_and_older,
+                -percent_hispanic,
+                -percent_rural,
+                -phyact_percent,
+                -physical_inactivity)
+
+psych::describe(county_analysis, na.rm = TRUE)
+
+```
+
+
+
+```{r regression diagnostics}
+county_analysis %>% 
+  ggplot(aes(access_pa_percent, ltpa_percent)) +
+  geom_point(alpha = .3, color = 'gray70') +
+  geom_smooth(method = 'lm', se = FALSE) +
+  facet_wrap(~year) +
+  theme_minimal()
+
+# county_analysis %>% 
+#   dplyr::select(ltpa_percent,
+#                 year,
+#                 violent_crime,
+#                 obesity_percent,
+#                 college_percent,
+#                 median_household_income,
+#                 air_pollution_particulate_matter,
+#                 driving_alone_percent,
+#                 rural_percent,
+#                 access_pa_percent) %>% 
+#   GGally::ggscatmat()
+    
+county_analysis %>% 
+  ggplot(aes(violent_crime)) +
+  geom_histogram(bins = 20, color = 'white', fill = 'dodgerblue') +
+  theme_minimal()
+
+county_analysis %>% 
+  ggplot(aes(log(median_household_income))) +
+  geom_histogram(bins = 20, color = 'white', fill = 'dodgerblue') +
+  theme_minimal()
+
+county_analysis %>% 
+  ggplot(aes(driving_alone_percent)) +
+  geom_histogram(bins = 20, color = 'white', fill = 'dodgerblue') +
+  theme_minimal()
+
+county_analysis %>% 
+  ggplot(aes(rural_percent)) +
+  geom_histogram(bins = 20, color = 'white', fill = 'dodgerblue') +
+  theme_minimal()
+    
+lm_model <- lm(ltpa_percent ~ access_pa_percent + year + violent_crime +
+                 obesity_percent + college_percent + median_household_income + air_pollution_particulate_matter + driving_alone_percent + rural_percent,
+               data = county_analysis)
+
+lm_model %>% 
+  ggplot(aes(.fitted, .resid)) +
+  geom_point(alpha = .3, color = 'gray70') +
+  geom_smooth(se = FALSE) +
+  theme_minimal()
+
+lm_model %>% 
+  ggplot(aes(sample = .stdresid)) +
+  geom_qq(color = 'gray70',
+          size = 4) +
+  stat_qq_line() +
+  theme_minimal()
+
+county_analysis %>% 
+  inspect_cor(with_col = 'ltpa_percent') %>% 
+  show_plot()
+
+county_analysis %>% 
+  inspect_cor(with_col = 'access_pa_percent') %>% 
+  show_plot()
+
+```
+
+```{r}
+library(ggmap)
+library(maps)
+library(googleway)
+
+us <- map_data(map = 'county')
+
+us <- us %>% 
+  rename(no_name_county = subregion)
+
+county_analysis <- county_analysis %>% 
+  mutate(no_name_county = str_replace_all(county_name, '_county', ''))
+
+visual <- right_join(us, county_analysis, by = c('no_name_county'))
+
+ggplot(data = visual, aes(x = long, y = lat, group = group)) +
+  geom_polygon(aes(fill = ltpa_percent), color = 'black') +
+  scale_fill_gradient(low = 'darkgreen', 
+                       high = 'dodgerblue') +
+    coord_fixed(1.1) +
+  facet_wrap(~year) +
+  theme_classic()
+
+ggplot(data = visual, aes(x = long, y = lat, group = group)) +
+  geom_polygon(aes(fill = rural_percent), color = 'gray40') +
+  scale_fill_gradient(low = 'darkgreen', 
+                       high = 'dodgerblue') +
+    coord_fixed(1.1) +
+  theme_classic()
+
+```
+
 
 Preliminary Findings
 
-```{r preliminary physical activity, echo = TRUE, eval = FALSE}
-# names(county)
-
-preliminary_ltpa_long <- lmer(ltpa_percent ~ year + (1 | state_fips_code) + (1 | state_fips_code:county_fips_code), 
-                       data = county,
-                       REML = FALSE,
-                    control = lmerControl(optimizer = 'Nelder_Mead'))
-
-summary(preliminary_ltpa_long)
-
-VarCorr(preliminary_ltpa_long)
-ltpa_null_icc <- as.tibble(VarCorr(preliminary_ltpa_long))
-ltpa_null_icc
+```{r icc functions, echo = TRUE, eval = FALSE}
 
 total_icc <- function(df){
   between <- df[1, 4] + df[2, 4]
@@ -336,11 +507,107 @@ county_state_icc <- function(df){
   between/total
 }
 
+
+```
+
+```{r}
+str(county_analysis)
+
+county_z <- county_analysis %>% 
+  mutate(rowid = as.character(rowid),
+         year = as.character(year)) %>% 
+  mutate_if(is.integer, as.numeric) %>%
+  mutate_if(is.numeric, scale)
+
+county_z %>% 
+  inspect_na() %>% 
+  show_plot()
+
+cor(county_z[8:22, 8:22], use = 'pairwise.complete.obs')
+
+class(county_z)
+names(county_z)
+str(county_z)
+
+# imputed_z <- mice::mice(county_z, pred = diag(ncol(Sparse_Data)), m = 10, maxit = 50)
+
+
+```
+
+
+```{r}
+names(county_z)
+str(county_z)
+
+county_z$year_num <- as.numeric(county_z$year)
+
+preliminary_ltpa_long <- lmer(ltpa_percent ~ year_num + (1 | state_fips_code) +
+                                (1 | state_fips_code:county_fips_code), 
+                              data = county_z,
+                              REML = FALSE,
+                              control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(preliminary_ltpa_long)
+
+ltpa_null_icc <- as_tibble(VarCorr(preliminary_ltpa_long))
+ltpa_null_icc
+
 total_icc(ltpa_null_icc)
 state_icc(ltpa_null_icc)
 county_state_icc(ltpa_null_icc)
 
-performance::icc(preliminary_ltpa_long)
+
+
+
+
+ltpa_long_controls <- lmer(ltpa_percent ~ year_num + violent_crime +
+                           obesity_percent + college_percent +
+                           median_household_income + air_pollution_particulate_matter +
+                           driving_alone_percent + rural_percent +
+                             (1 | state_fips_code) + (1 | state_fips_code:county_fips_code), 
+                           data = county_z,
+                           REML = FALSE,
+                           control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(ltpa_long_controls)
+
+ltpa_controls_icc <- as_tibble(VarCorr(ltpa_long_controls))
+ltpa_controls_icc
+
+total_icc(ltpa_controls_icc)
+state_icc(ltpa_controls_icc)
+county_state_icc(ltpa_controls_icc)
+
+
+
+
+
+ltpa_long_access <- lmer(ltpa_percent ~ year_num + violent_crime +
+                           obesity_percent + college_percent +
+                           median_household_income + air_pollution_particulate_matter +
+                           driving_alone_percent + rural_percent + 
+                           access_pa_percent + (1 | state_fips_code) + (1 | state_fips_code:county_fips_code), 
+                         data = county_z,
+                         REML = FALSE,
+                         control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(ltpa_long_access)
+
+anova(ltpa_long_controls, ltpa_long_access)
+
+ltpa_access_icc <- as_tibble(VarCorr(ltpa_long_access))
+ltpa_access_icc
+
+total_icc(ltpa_access_icc)
+state_icc(ltpa_access_icc)
+county_state_icc(ltpa_access_icc)
+
+```
+
+
+Main Findings
+
+```{r}
 
 preliminary_access_pa_long <- lmer(access_pa ~ year + (1 | state_fips_code) + (1 | state_fips_code:county_fips_code), 
                        data = county,
@@ -354,26 +621,10 @@ access_null_icc <- as.tibble(VarCorr(preliminary_access_pa_long))
 total_icc(access_null_icc)
 state_icc(access_null_icc)
 county_state_icc(access_null_icc)
-
 ```
 
-Main Findings
 
 ```{r access longitudinal with controls, echo = TRUE, eval = FALSE}
-ltpa_long_controls <- lmer(ltpa_percent ~ year + violent_crime +
-                                  adult_obesity + some_college +
-                                  income_inequality + air_pollution_particulate_matter +
-                                  driving_alone_to_work + percent_rural +
-                                  (1 | state_fips_code) + (1 | state_fips_code:county_fips_code), 
-                       data = county,
-                       REML = FALSE,
-                    control = lmerControl(optimizer = 'Nelder_Mead'))
-
-summary(ltpa_long_controls)
-
-
-# anova(preliminary_ltpa_long, ltpa_long_controls)
-
 
 access_long_controls <- lmer(access_pa ~ year + violent_crime + median_household_income + percent_rural + population + (1 | state_fips_code) + (1 | state_fips_code:county_fips_code), 
                        data = county,
@@ -387,20 +638,6 @@ summary(access_long_controls)
 
 ```{r physical activity included, echo = TRUE, eval = FALSE}
 
-ltpa_long_access <- lmer(ltpa_percent ~ year + violent_crime +
-                                  adult_obesity + some_college +
-                                  income_inequality + air_pollution_particulate_matter +
-                                  driving_alone_to_work + percent_rural + 
-                                  access_pa + (1 | state_fips_code) + (1 | state_fips_code:county_fips_code), 
-                       data = county,
-                       REML = FALSE,
-                    control = lmerControl(optimizer = 'Nelder_Mead'))
-
-summary(ltpa_long_access)
-
-anova(ltpa_long_controls, ltpa_long_access)
-
-
 access_long_latino <- lmer(access_pa ~ year + violent_crime + median_household_income + percent_rural + population + percent_hispanic + 
                                   (1 | state_fips_code) + (1 | state_fips_code:county_fips_code), 
                        data = county,
@@ -413,20 +650,6 @@ anova(access_long_controls, access_long_latino)
 ```
 
 ```{r physical activity included, echo = TRUE, eval = FALSE}
-
-ltpa_long_access_random <- lmer(ltpa_percent ~ year + violent_crime +
-                                  adult_obesity + some_college +
-                                  income_inequality + air_pollution_particulate_matter +
-                                  driving_alone_to_work + percent_rural + 
-                                  access_pa + (year || state_fips_code) + (year || state_fips_code:county_fips_code), 
-                       data = county,
-                       REML = FALSE,
-                    control = lmerControl(optimizer = 'Nelder_Mead'))
-
-summary(ltpa_long_access_random)
-
-anova(ltpa_long_access, ltpa_long_access_random)
-
 
 access_long_latino_random <- lmer(access_pa ~ year + violent_crime + median_household_income + percent_rural + population + percent_hispanic + 
                                   (percent_hispanic || state_fips_code) + (percent_hispanic || state_fips_code:county_fips_code), 
