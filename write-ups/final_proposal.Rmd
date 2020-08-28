@@ -1,0 +1,496 @@
+---
+title: "proposal 7_13_20"
+author: "JP"
+date: "7/13/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r functions}
+total_icc <- function(df){
+  between <- df[1, 4] + df[2, 4]
+  total <- df[1, 4] + df[2, 4] + df[3, 4]
+  
+  between/total
+}
+
+state_icc <- function(df){
+  between <- df[2, 4]
+  total <- df[1, 4] + df[2, 4] + df[3, 4]
+  
+  between/total
+}
+
+county_state_icc <- function(df){
+  between <- df[1, 4]
+  total <- df[1, 4] + df[2, 4] + df[3, 4]
+  
+  between/total
+}
+```
+
+```{r packages used}
+library(tidyverse)
+library(inspectdf)
+library(psych)
+library(lme4)
+library(lmerTest)
+library(optimx)
+
+options(max.print = 99999)
+options(scipen = 999)
+theme_set(theme_minimal())
+
+
+getwd()
+
+set.seed(07122020)
+```
+
+```{r uploading data}
+counties <- function(years){
+  
+  link <- glue::glue('C:/Users/cpppe/OneDrive/Desktop/github shared projects/dissertation/final_data/county{years}_sub.csv')
+  
+  rio::import(link, setclass = 'tibble')
+  
+}
+
+counties(19)
+county <- map_df(16:20, ~counties(.x))
+
+```
+
+```{r processing data}
+county <- county %>% 
+  dplyr::select(rowid,
+                state_fips_code:release_year,
+                poor_or_fair_health:access_to_exercise_opportunities,
+                preventable_hospital_stays,
+                some_college:driving_alone_to_work,
+                food_insecurity:uninsured_children,
+                median_household_income:percent_rural) %>% 
+  rename(year = release_year,
+         state = state_abbreviation) %>% 
+  mutate(phyact_percent = (physical_inactivity*100),
+         ltpa_percent = (100 - phyact_percent)) %>% 
+  rename(access_pa = access_to_exercise_opportunities) %>% 
+  mutate(smoking_percent = adult_smoking*100,
+         obesity_percent = adult_obesity*100,
+         access_pa_percent = access_pa*100,
+         college_percent = some_college*100,
+         unemployment_percent = unemployment*100,
+         driving_alone_percent = driving_alone_to_work*100,
+         percent_65plus = percent_65_and_older*100,
+         latino_percent = percent_hispanic*100,
+         rural_percent = percent_rural*100) %>% 
+  dplyr::select(-adult_smoking,
+                -adult_obesity,
+                -access_pa,
+                -some_college,
+                -unemployment,
+                -driving_alone_to_work,
+                -percent_65_and_older,
+                -percent_hispanic,
+                -percent_rural,
+                -phyact_percent,
+                -physical_inactivity)
+
+county <- county %>%
+  filter(!county_name %in% state)
+
+county$year_num <- as.numeric(county$year)
+
+county_mice <- county[, -which(colMeans(is.na(county)) >= 0.10)]
+```
+
+
+## Model Equations
+
+$$ Level 1: LTPA_{tij} = \beta_{0ij} + \beta_{1}(year_{tij}) + \epsilon_{0tij} $$
+
+$$ Level 2: \beta_{0ij} = \beta_{0j} + \mu_{0ij} $$
+
+$$ Level 3: \beta_{0j} = \beta_0 + \nu_{0j} $$
+## Combined Initial Model
+
+$$  LTPA_{tij} = \beta_0 + \beta_{1}(year_{tij}) + \nu_{0j} + \mu_{0ij} + \epsilon_{0tij}  $$
+
+$$ Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})  $$
+
+$$ Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0}) $$
+
+$$ Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0}) $$
+
+```{r preliminary model}
+preliminary_ltpa_long <- lmer(ltpa_percent ~ year + (1 | state_fips_code) +
+                                (1 | state_fips_code:county_fips_code), 
+                              data = county,
+                              REML = FALSE,
+                              control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(preliminary_ltpa_long)
+
+ltpa_null_icc <- as_tibble(VarCorr(preliminary_ltpa_long))
+ltpa_null_icc
+
+total_icc(ltpa_null_icc)
+state_icc(ltpa_null_icc)
+county_state_icc(ltpa_null_icc)
+```
+
+
+## Second Model
+
+$$ Level 1: LTPA_{tij} = \beta_{0ij} + \beta_{1}(year_{tij}) + \epsilon_{0tij} $$
+
+$$ Level 2: \beta_{0ij} = \beta_{0j} + \beta_{2}(ViolentCrime_{ij})+ \beta_{3}(Obesity_{ij}) + \beta_{4}(MedianHouseholdIncome_{ij}) + \beta_{5}(AirPollution_{ij}) + \beta_{6}(rurality_{ij}) + \beta_{7}(access_{ij}) + \mu_{0ij} $$
+
+$$ Level 3: \beta_{0j} = \beta_0 + \nu_{0j} $$
+
+## Combined Second Model
+
+$$ LTPA_{ti} = \beta_0 + \beta_{1}(year_{tij}) + \beta_{2}(ViolentCrime_{ij}) + \beta_{3}(Obesity_{ij}) + \beta_{4}(MedianHouseholdIncome_{ij}) + \beta_{5}(AirPollution_{ij}) + \beta_{6}(rurality_{ij}) + \beta_{7}(access_{ij}) + \nu_{0j} + \mu_{0ij} + \epsilon_{0tij} $$
+
+$$ Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})  $$
+
+$$ Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0}) $$
+
+$$ Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0}) $$
+
+```{r controls included model}
+names(county)
+
+ltpa_long_controls <- lmer(ltpa_percent ~ year + violent_crime +
+                             obesity_percent + median_household_income + air_pollution_particulate_matter +
+                             rural_percent + 
+                             access_pa_percent +
+                             (1 | state_fips_code) + (1 | state_fips_code:county_fips_code), 
+                           data = county,
+                           REML = FALSE,
+                           control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(ltpa_long_controls)
+
+ltpa_controls_icc <- as_tibble(VarCorr(ltpa_long_controls))
+ltpa_controls_icc
+
+total_icc(ltpa_controls_icc)
+state_icc(ltpa_controls_icc)
+county_state_icc(ltpa_controls_icc)
+
+# anova(preliminary_ltpa_long, ltpa_long_controls)
+```
+
+
+## Third Model
+
+$$ Level 1: LTPA_{tij} = \beta_{0ij} + \beta_{1}(year_{tij}) + \epsilon_{0tij} $$
+
+$$ Level 2: \beta_{0ij} = \beta_{0j} + \beta_{2}(ViolentCrime_{ij})+ \beta_{3}(Obesity_{ij}) + \beta_{4}(MedianHouseholdIncome_{ij}) + \beta_{5}(AirPollution_{ij}) + \beta_{6}(rurality_{ij}) + \beta_{7}(access_{ij}) + \mu_{0ij} $$
+
+$$ Level 2 slope: \beta_{7ij} = \beta_{7j} + \mu_{7ij}  $$
+
+$$ Level 3: \beta_{0j} = \beta_0 + \nu_{0j} $$
+
+$$ Level 3 slope: \beta_{7j} = \beta_{7} + \nu_{7j}  $$
+
+### Combined Third Model (Random Slope)
+
+$$ Combined Model: LTPA_{ti} = \beta_0 + \beta_{1}(year_{tij}) + \beta_{2}(ViolentCrime_{ij})+ \beta_{3}(Obesity_{ij}) + \beta_{4}(MedianHouseholdIncome_{ij}) + \beta_{5}(AirPollution_{ij}) + \beta_{6}(rurality_{ij}) + \beta_{7}(access_{ij}) + \nu_{0j} + \nu_{7j}(access_{ij}) + \mu_{0ij} + \mu_{7ij}(access_{ij} + \epsilon_{0tij}  $$
+
+$$ Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})  $$
+
+$$  Level 2:
+\left[\begin{array}{cc} 
+\mu_{0j}\\
+\mu_{1j}
+\end{array}\right] 
+\sim N  
+\left(\begin{array}{cc}
+0,
+\left[\begin{array}{cc}
+\sigma^2_{\mu0} &  \\ 
+\sigma_{\mu0\mu1} & \sigma^2_{\mu1}
+\end{array}\right]
+\end{array}\right) $$
+
+
+$$ Level 3 : 
+\left[\begin{array}{cc} 
+\nu_{0j}\\
+\nu_{1j}
+\end{array}\right] 
+\sim N  
+\left(\begin{array}{cc}
+0,
+\left[\begin{array}{cc}
+\sigma^2_{\nu0} &  \\ 
+\sigma_{\nu0\nu1} & \sigma^2_{\nu1}
+\end{array}\right]
+\end{array}\right)  $$
+
+
+```{r random slope model}
+ltpa_long_access_random <- lmer(ltpa_percent ~ year_num + violent_crime +
+                           obesity_percent +
+                           median_household_income + air_pollution_particulate_matter +
+                           rural_percent + 
+                           access_pa_percent + (access_pa_percent | state_fips_code) + (access_pa_percent | state_fips_code:county_fips_code), 
+                         data = county,
+                         REML = FALSE,
+                         control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(ltpa_long_access_random)
+
+anova(ltpa_long_controls, ltpa_long_access_random)
+
+```
+
+
+
+## Fourth Model
+
+$$ Level 1: LTPA_{tij} = \beta_{0ij} + \beta_{1}(year_{tij}) + \epsilon_{0tij} $$
+
+$$ Level 2: \beta_{0ij} = \beta_{0j} + \beta_{2}(ViolentCrime_{ij})+ \beta_{3}(Obesity_{ij}) + \beta_{4}(MedianHouseholdIncome_{ij}) + \beta_{5}(AirPollution_{ij}) + \beta_{6}(rurality_{ij}) + \beta_{7}(access_{ij}) + \beta_{8}(AccessxMedianHouseholdIncome_{ij}) + \mu_{0ij} $$
+
+$$ Level 2 slope: \beta_{7ij} = \beta_{7j} + \mu_{7ij}  $$
+
+$$ Level 3: \beta_{0j} = \beta_0 + \nu_{0j} $$
+
+$$ Level 3 slope: \beta_{7j} = \beta_{7} + \nu_{7j}  $$
+
+### Combined Fourth Model (Random Slope & Interaction)
+
+$$ Combined Model: LTPA_{ti} = \beta_0 + \beta_{1}(year_{tij}) + \beta_{2}(ViolentCrime_{ij})+ \beta_{3}(Obesity_{ij}) + \beta_{4}(MedianHouseholdIncome_{ij}) + \beta_{5}(AirPollution_{ij}) + \beta_{6}(rurality_{ij}) + \beta_{7}(access_{ij}) + \beta_{8}(AccessxMedianHouseholdIncome_{ij}) + \nu_{0j} + \nu_{7j}(access_{ij}) + \mu_{0ij} + \mu_{7ij}(access_{ij} + \epsilon_{0tij}  $$
+
+$$ Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})  $$
+
+$$  Level 2:
+\left[\begin{array}{cc} 
+\mu_{0j}\\
+\mu_{1j}
+\end{array}\right] 
+\sim N  
+\left(\begin{array}{cc}
+0,
+\left[\begin{array}{cc}
+\sigma^2_{\mu0} &  \\ 
+\sigma_{\mu0\mu1} & \sigma^2_{\mu1}
+\end{array}\right]
+\end{array}\right) $$
+
+
+$$ Level 3 : 
+\left[\begin{array}{cc} 
+\nu_{0j}\\
+\nu_{1j}
+\end{array}\right] 
+\sim N  
+\left(\begin{array}{cc}
+0,
+\left[\begin{array}{cc}
+\sigma^2_{\nu0} &  \\ 
+\sigma_{\nu0\nu1} & \sigma^2_{\nu1}
+\end{array}\right]
+\end{array}\right)  $$
+
+
+```{r household income interaction model}
+ltpa_long_access_int <- lmer(ltpa_percent ~ year_num + violent_crime +
+                           obesity_percent +
+                           air_pollution_particulate_matter +
+                           rural_percent + 
+                           access_pa_percent*median_household_income + 
+                           (access_pa_percent | state_fips_code) + (access_pa_percent | state_fips_code:county_fips_code), 
+                         data = county,
+                         REML = FALSE,
+                         control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(ltpa_long_access_int)
+
+anova(ltpa_long_access_random, ltpa_long_access_int)
+
+```
+
+
+## Fifth Model
+
+$$ Level 1: LTPA_{tij} = \beta_{0ij} + \beta_{1}(year_{tij}) + \epsilon_{0tij} $$
+
+$$ Level 2: \beta_{0ij} = \beta_{0j} + \beta_{2}(ViolentCrime_{ij})+ \beta_{3}(Obesity_{ij}) + \beta_{4}(MedianHouseholdIncome_{ij}) + \beta_{5}(AirPollution_{ij}) + \beta_{6}(rurality_{ij}) + \beta_{7}(access_{ij}) + \beta_{8}(PercentLatino_{ij}) + \beta_{9}(AccessxPercentLatino_{ij}) + \mu_{0ij} $$
+
+$$ Level 2 slope: \beta_{7ij} = \beta_{7j} + \mu_{7ij}  $$
+
+$$ Level 3: \beta_{0j} = \beta_0 + \nu_{0j} $$
+
+$$ Level 3 slope: \beta_{7j} = \beta_{7} + \nu_{7j}  $$
+
+### Combined Fifth Model (Random Slope & Interaction)
+
+$$ Combined Model: LTPA_{ti} = \beta_0 + \beta_{1}(year_{tij}) + \beta_{2}(ViolentCrime_{ij})+ \beta_{3}(Obesity_{ij}) + \beta_{4}(MedianHouseholdIncome_{ij}) + \beta_{5}(AirPollution_{ij}) + \beta_{6}(rurality_{ij}) + \beta_{7}(access_{ij}) + \beta_{8}(PercentLatino_{ij}) + \beta_{9}(AccessxPercentLatino_{ij}) + \nu_{0j} + \nu_{7j}(access_{ij}) + \mu_{0ij} + \mu_{7ij}(access_{ij} + \epsilon_{0tij}  $$
+
+$$ Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})  $$
+
+$$  Level 2:
+\left[\begin{array}{cc} 
+\mu_{0j}\\
+\mu_{1j}
+\end{array}\right] 
+\sim N  
+\left(\begin{array}{cc}
+0,
+\left[\begin{array}{cc}
+\sigma^2_{\mu0} &  \\ 
+\sigma_{\mu0\mu1} & \sigma^2_{\mu1}
+\end{array}\right]
+\end{array}\right) $$
+
+
+$$ Level 3 : 
+\left[\begin{array}{cc} 
+\nu_{0j}\\
+\nu_{1j}
+\end{array}\right] 
+\sim N  
+\left(\begin{array}{cc}
+0,
+\left[\begin{array}{cc}
+\sigma^2_{\nu0} &  \\ 
+\sigma_{\nu0\nu1} & \sigma^2_{\nu1}
+\end{array}\right]
+\end{array}\right)  $$
+
+```{r latino interaction model}
+ltpa_long_access_latino_int <- lmer(ltpa_percent ~ year_num + violent_crime +
+                           obesity_percent +
+                           air_pollution_particulate_matter +
+                           rural_percent + 
+                           median_household_income +
+                           access_pa_percent*latino_percent +
+                           (access_pa_percent | state_fips_code) + (access_pa_percent | state_fips_code:county_fips_code), 
+                         data = county,
+                         REML = FALSE,
+                         control = lmerControl(optimizer = 'Nelder_Mead'))
+
+summary(ltpa_long_access_latino_int)
+
+anova(ltpa_long_access_random, ltpa_long_access_latino_int)
+```
+
+
+
+
+```{r map visualization prep}
+library(ggmap)
+library(maps)
+library(googleway)
+library(RColorBrewer)
+library(ggrepel)
+display.brewer.all()
+
+us <- map_data(map = 'county')
+
+us <- us %>% 
+  janitor::clean_names() %>% 
+  rename(state = region,
+         no_name_county = subregion) 
+
+us$state <- str_replace_all(us$state, pattern = " ", replacement = "_")
+us$no_name_county <- str_replace_all(us$no_name_county, pattern = " ", replacement = "_")
+
+us <- us %>% 
+  mutate(state = recode(state, 'alabama' = 'AL','alaska' = 'AK','arizona' = 'AZ','arkansas' = 'AR',
+            'california' = 'CA','colorado' = 'CO','connecticut' = 'CT',
+            'delaware' = 'DE',
+            'florida' = 'FL',
+            'georgia' = 'GA',
+            'hawaii' = 'HI',
+            'idaho' = 'ID','illinois' = 'IL','indiana' = 'IN','iowa' = 'IA',
+            'kansas' = 'KS','kentucky' = 'KY',
+            'louisiana' = 'LA',
+            'maine' = 'MA','maryland' = 'MD','massachusetts' = 'MA','michigan' = 'MI','minnesota' = 'MN','mississippi' = 'MS','missouri' = 'MO','montana' = 'MT',
+            'nebraska' = 'NE','nevada' = 'NV','new_hampshire' = 'NH','new_jersey' = 'NJ','new_mexico' = 'NM','new_york' = 'NY','north_carolina' = 'NC','north_dakota' = 'ND',
+            'ohio' = 'OH','oklahoma' = 'OK','oregon' = 'OR',
+            'pennsylvania' = 'PA',
+            'rhode_island' = 'RI',
+            'south_carolina' = 'SC','south_dakota' = 'SD',
+            'tennessee' = 'TN','texas' = 'TX',
+            'utah' = 'UT',
+            'vermont' = 'VT','virginia' = 'VA',
+            'washington' = 'WA','west_virginia' = 'WV','wisconsin' = 'WI','wyoming' = 'WY'))
+
+```
+
+```{r joining data with mapping data}
+county <- county %>%
+  mutate(no_name_county = str_replace_all(county_name, '_county', ''))
+
+visual <- right_join(us, county, by = c('state', 'no_name_county'))
+
+state_plot <- distinct(visual, state) 
+```
+
+
+```{r visualization functions}
+state_plot <- function(data, state, year, fill){
+  
+  data %>% 
+    filter(state == {{state}}) %>% 
+    filter(year == {{year}}) %>% 
+  ggplot(aes(x = long, y = lat, group = group)) +
+    geom_polygon(aes(fill = {{fill}}), color = 'black', size = .5) +
+    scale_fill_gradientn(colors = brewer.pal(10, 'Spectral')) +
+    coord_fixed(1.1)
+}
+
+numeric_plot <- function(data, year, x, y){
+  
+  data %>% 
+    filter(year == {{year}}) %>%
+    ggplot(aes(x = {{x}}, y = {{y}})) +
+    geom_point(alpha = .4, color = 'gray70') +
+    geom_smooth(method = 'lm', color = 'red')
+}
+
+numeric_plot_by_state <- function(data, state, year, x, y){
+  
+  data %>% 
+    filter(state == {{state}}) %>%
+    filter(year == {{year}}) %>%
+    ggplot(aes(x = {{x}}, y = {{y}})) +
+    geom_point(alpha = .4, color = 'gray70') +
+    geom_smooth(method = 'lm', color = 'red')
+}
+
+year_plot <- function(data, x, state){
+  
+  {{data}} %>% 
+    group_by(year, {{state}}) %>% 
+    filter(state == {{state}}) %>%
+    mutate(mean_value = mean({{x}})) %>% 
+    ungroup(year, {{x}}) %>% 
+    mutate(year = as.numeric(as.character(year))) %>% 
+    ggplot(aes(year, mean_value)) +
+    geom_line(aes(color = {{x}}), size = 1) +
+    geom_point()+
+    scale_x_continuous(limits = c(2016, 2020),
+                       breaks = c(2016, 2017, 2018, 2019, 2020))
+}
+```
+
+```{r map plots}
+
+state_plot(data = visual, state = 'CA', year = '2018', fill = ltpa_percent)
+
+numeric_plot(data = visual, year = '2020', x = latino_percent, y = ltpa_percent)
+
+numeric_plot_by_state(data = visual, state = 'CA', year = '2020', x = latino_percent, y = ltpa_percent)
+
+
+year_plot(data = visual, x = ltpa_percent, state = 'CA')
+```
