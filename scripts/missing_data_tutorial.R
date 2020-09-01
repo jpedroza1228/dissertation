@@ -18,7 +18,7 @@ set.seed(07122020)
 
 counties <- function(years){
   
-  link <- glue::glue('C:/Users/cpppe/OneDrive/Desktop/github shared projects/dissertation/final_data/county{years}_sub.csv')
+  link <- glue::glue('C:/Users/cpppe/Desktop/github shared folders/dissertation/final_data/county{years}_sub.csv')
   
   rio::import(link, setclass = 'tibble')
   
@@ -75,13 +75,31 @@ county_mice <- county[, -which(colMeans(is.na(county)) >= 0.10)]
 inspect_na(county_mice)
 
 county_mice %>% 
-  dplyr::select(county_name, state, violent_crime, access_pa_percent, year_num, ltpa_percent) %>%
+  dplyr::select(county_name, state, violent_crime, access_pa_percent, year_num, ltpa_percent) %>% 
   filter(state == 'AK') %>%
   naniar::gg_miss_var(facet = county_name, show_pct = TRUE)
 
-county_mice %>% 
-  dplyr::select(county_name, state, violent_crime, access_pa_percent, year_num, ltpa_percent) %>%
-  naniar::gg_miss_var(facet = state, show_pct = TRUE)
+
+state_nest <- county_mice %>% 
+  dplyr::select(county_name, state, violent_crime, access_pa_percent, year_num, ltpa_percent) %>% 
+  group_by(state) %>% 
+  nest() %>% 
+  mutate(state_missing_plots = map(data, 
+                                   ~naniar::gg_miss_var(.x, facet = county_name, show_pct = TRUE)))
+
+state_nest$state_missing_plots[[26]]
+
+# fs::dir_create(here::here("missing_plots", "states"))
+
+# files_missing <- str_replace_all(tolower(state_nest$state_missing_plots), " ", "-")
+# paths_missing <- here::here("missing_plots", "states", glue::glue("{files_missing}.png"))
+# paths_missing
+
+# walk2(paths_missing, state_nest$state_missing_plots, ggsave,
+#       width = 9.5, 
+#       height = 6.5,
+#       dpi = 500)
+
 
 # States we know are missing data:
 # AK, CO, CT, GA, HI, IA, IN, MA, MS, MT, NC, NE, NM, OR, SD, UT, WV, WY
