@@ -1,6 +1,16 @@
+library(tidyverse)
+library(inspectdf)
+library(psych)
 library(lme4)
-library(optimx)
 library(lmerTest)
+library(optimx)
+
+options(max.print = 99999)
+options(scipen = 999)
+theme_set(theme_minimal())
+
+
+getwd()
 
 county_icc_2level <- function(multi_model){
   between <- multi_model$vcov[1]
@@ -8,6 +18,60 @@ county_icc_2level <- function(multi_model){
   
   between/total
 }
+
+
+counties <- function(years){
+  
+  link <- glue::glue('C:/Users/cpppe/Desktop/github_shared_folders/dissertation/final_data/county{years}_sub.csv')
+  
+  rio::import(link, setclass = 'tibble')
+  
+}
+
+
+county <- map_df(16:20, ~counties(.x))
+
+
+county <- county %>% 
+  dplyr::select(rowid,
+                state_fips_code:release_year,
+                poor_or_fair_health:access_to_exercise_opportunities,
+                preventable_hospital_stays,
+                some_college:driving_alone_to_work,
+                food_insecurity:uninsured_children,
+                median_household_income:percent_rural) %>% 
+  rename(year = release_year,
+         state = state_abbreviation) %>% 
+  mutate(phyact_percent = (physical_inactivity*100),
+         ltpa_percent = (100 - phyact_percent)) %>% 
+  rename(access_pa = access_to_exercise_opportunities) %>% 
+  mutate(smoking_percent = adult_smoking*100,
+         obesity_percent = adult_obesity*100,
+         access_pa_percent = access_pa*100,
+         college_percent = some_college*100,
+         unemployment_percent = unemployment*100,
+         driving_alone_percent = driving_alone_to_work*100,
+         percent_65plus = percent_65_and_older*100,
+         latino_percent = percent_hispanic*100,
+         rural_percent = percent_rural*100) %>% 
+  dplyr::select(-adult_smoking,
+                -adult_obesity,
+                -access_pa,
+                -some_college,
+                -unemployment,
+                -driving_alone_to_work,
+                -percent_65_and_older,
+                -percent_hispanic,
+                -percent_rural,
+                -phyact_percent,
+                -physical_inactivity)
+
+county <- county %>%
+  filter(!county_name %in% state)
+
+county$year_num <- as.numeric(county$year)
+
+
 
 preliminary_ltpa_long <- lmer(ltpa_percent ~ year_num +(1 | county_fips_code),data = ca,REML = FALSE,
                                     control = lmerControl(optimizer = 'Nelder_Mead'))
@@ -129,3 +193,28 @@ class(states)
 
 county_sub <- county_sub %>%
   filter(!county_name %in% states)
+
+
+library(ggmap)
+library(maps)
+library(googleway)
+
+
+us <- map_data(map = 'county')
+
+
+us <- us %>% 
+  rename(county = subregion,
+         state = region)
+
+us$county <- str_to_lower(us$county)
+us$county <- str_replace_all(us$county, pattern = " ",
+                               replacement = "_")
+
+library(gganimate)
+
+us <- us %>% 
+  filter(state == 'california') %>% 
+  mutate(state = recode(state, 'california' = 'CA'))
+
+
