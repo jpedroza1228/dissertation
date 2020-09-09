@@ -13,12 +13,12 @@ theme_set(theme_minimal())
 getwd()
 
 set.seed(07122020)
-
-
+# may need OneDrive before Desktop
+# C:/Users/cpppe/OneDrive/
 
 counties <- function(years){
   
-  link <- glue::glue('C:/Users/cpppe/Desktop/github shared folders/dissertation/final_data/county{years}_sub.csv')
+  link <- glue::glue('C:/Users/cpppe/OneDrive/Desktop/github_shared_folders/dissertation/final_data/county{years}_sub.csv')
   
   rio::import(link, setclass = 'tibble')
   
@@ -61,10 +61,12 @@ county <- county %>%
                 -percent_hispanic,
                 -percent_rural,
                 -phyact_percent,
-                -physical_inactivity)
+                -physical_inactivity) %>% 
+  filter(fips_code != '0')
+  
+county <- county %>% 
+  filter(str_detect(fips_code, '000$', negate = TRUE))
 
-county <- county %>%
-  filter(!county_name %in% state)
 
 county$year_num <- as.numeric(county$year)
 
@@ -75,19 +77,25 @@ county_mice <- county[, -which(colMeans(is.na(county)) >= 0.10)]
 inspect_na(county_mice)
 
 county_mice %>% 
+  inspect_na() %>% 
+  show_plot()
+
+county_mice %>% 
   dplyr::select(county_name, state, violent_crime, access_pa_percent, year_num, ltpa_percent) %>% 
   filter(state == 'AK') %>%
   naniar::gg_miss_var(facet = county_name, show_pct = TRUE)
 
+drop <- county_mice %>% 
+  drop_na('violent_crime')
 
-state_nest <- county_mice %>% 
-  dplyr::select(county_name, state, violent_crime, access_pa_percent, year_num, ltpa_percent) %>% 
-  group_by(state) %>% 
-  nest() %>% 
-  mutate(state_missing_plots = map(data, 
-                                   ~naniar::gg_miss_var(.x, facet = county_name, show_pct = TRUE)))
+# state_nest <- county_mice %>% 
+#   dplyr::select(county_name, state, violent_crime, access_pa_percent, year_num, ltpa_percent) %>% 
+#   group_by(state) %>% 
+#   nest() %>% 
+#   mutate(state_missing_plots = map(data, 
+#                                    ~naniar::gg_miss_var(.x, facet = county_name, show_pct = TRUE)))
 
-state_nest$state_missing_plots[[26]]
+# state_nest$state_missing_plots[[26]]
 
 # fs::dir_create(here::here("missing_plots", "states"))
 
@@ -101,93 +109,156 @@ state_nest$state_missing_plots[[26]]
 #       dpi = 500)
 
 
+# cnty_miss <- county_mice %>% 
+#   dplyr::select(county_name, state, violent_crime, access_pa_percent, year_num, ltpa_percent) %>% 
+#   group_by(state) %>% 
+#   nest() %>% 
+#   mutate(state_missing_plots = map(data, 
+#                                    ~naniar::gg_miss_var(.x, show_pct = TRUE)))
+
+# cnty_miss$state_missing_plots[[26]]
 # States we know are missing data:
 # AK, CO, CT, GA, HI, IA, IN, MA, MS, MT, NC, NE, NM, OR, SD, UT, WV, WY
 
 library(mice)
 library(miceadds)
 
-pred_matrix <- make.predictorMatrix(data = county_mice)
-imp_method <- make.method(data = county_mice)
 
-imp_method[c('violent_crime', 'ltpa_percent', 'access_pa_percent')] <- 'ml.lmer'
-imp_method['w'] <- '2lonly.norm'
+# small_data <- county_mice %>%
+#   sample_frac(.1)
 
-pred_matrix[, c("county_name", "state")] <- 0
-# pred_matrix["w", "state"] <- -2
+# md.pattern(small_data)
 
-level <- character(ncol(county_mice))
-names(level) <- colnames(county_mice)
+# small_data %>% 
+#   inspect_na() %>% 
+#   show_plot()
 
-level['w'] <- 'state'
-level['z'] <- 'county_name'
+# str(small_data)
 
-cluster <- list()
+# small_data <- small_data %>% 
+#   dplyr::select(year_num, county_fips_code, state_fips_code,
+#                 access_pa_percent,
+#                 ltpa_percent, violent_crime, rural_percent,
+#                 obesity_percent) %>% 
+#   mutate(year_num = as.integer(year_num))
 
-cluster[['x']] <- c('county_name', 'state')
-cluster[['y']] <- c('county_name', 'state')
-cluster[['z']] <- c('state')
 
-imp <- mice(county_name, method = imp_method,
-            predictorMatrix = pred_matrix,
-            maxit = 20,
-            m = 5, levels_id = cluster,
-            variables_level = level)
+# IMPUTATION PRACTICE 
+# only two level, year and county
 
-# install.packages('mitml')
+names(small_data)
+
+str(small_data)
+
+
+small_data$ltpa_percent <- as.vector(scale(small_data$ltpa_percent,
+                                           scale = FALSE))
+
+variables_levels <- miceadds:::mice_imputation_create_type_vector(colnames(small_data),
+                                                                  value = "")
+# leave variables at lowest level blank (i.e., "")
+variables_levels[c('access_pa_percent', 'ltpa_percent',
+                    'violent_crime', 'rural_percent',
+                    'obesity_percent')] <- "county_fips_code"
+
+
+
+
+pred_matrix <- make.predictorMatrix(data = small_data)
+imp_method <- make.method(data = small_data)
+
+pred_matrix[, c("fips_code", 'state_fips_code')] <- 0
+pred_matrix['year_num', ] <- c(0, 0, -2, 1, 1, 1, 1, 1)
+pred_matrix['access_pa_percent', ] <- c(1, 0, -2, 0, 4, 1, 1, 1)
+pred_matrix['ltpa_percent', ] <- c(1, 0, -2, 4, 0, 1, 1, 1)
+pred_matrix['violent_crime', ] <- c(1, 0, -2, 1, 1, 0, 1, 1)
+pred_matrix['rural_percent', ] <- c(1, 0, -2, 1, 1, 1, 0, 1)
+pred_matrix['obesity_percent', ] <- c(1, 0, -2, 1, 1, 1, 1, 0)
+
+pred_matrix
+
+
+imp_method[c('access_pa_percent', 'ltpa_percent',
+             'violent_crime', 'rural_percent',
+             'obesity_percent')] <- '2l.pmm'
+
+# ml.lmer is used for 3 levels or more
+
+levels_id <- list()
+
+levels_id[['violent_crime']] <- c('state_fips_code')
+levels_id[['ltpa_percent']] <- c('state_fips_code')
+levels_id[['access_pa_percent']] <- c('state_fips_code')
+levels_id[['rural_percent']] <- c('fips_code', 'state_fips_code')
+levels_id[['obesity_percent']] <- c('fips_code', 'state_fips_code')
+
+# random_slopes <- list()
+# random_slopes[['access_pa_percent']] <- list('fips_code' = c())
+
+imp_cran <- mice(small_data, 
+                 maxit = 10, 
+                 m = 5, 
+                 method = imp_method,
+                 predictorMatrix = pred_matrix)
+
+
+
+
 library(mitml)
 
+fit <- with(imp_cran, lme4::lmer(ltpa_percent ~ access_pa_percent +
+                                     year_num + violent_crime +
+                                     rural_percent + obesity_percent +
+                                     (access_pa_percent | state_fips_code), 
+                                   REML = FALSE,
+                                   control = lmerControl(optimizer = 'Nelder_Mead')))
+summary(pool(fit))
+
+testEstimates(as.mitml.result(fit), var.comp = TRUE)$var.comp
 
 
-# impute practice
-county_mice <- county[, -which(colMeans(is.na(county)) >= 0.10)]
-
-names(county_mice)
 
 
-county_mice %>% 
-  group_by(state) %>% 
-  naniar::gg_miss_var(facet = county_name,
-                      show_pct = TRUE)
 
-county_mice %>% 
-  filter(state_fips_code == 1) %>% 
-  naniar::gg_miss_var(facet = county_fips_code,
-                      show_pct = TRUE)
 
-county_mice %>% 
-  inspect_na() %>% 
+
+
+
+
+
+
+
+
+
+
+level <- character(ncol(small_data))
+names(level) <- colnames(small_data)
+
+
+level['violent_crime'] <- 'county_fips_code'
+level['ltpa_percent'] <- 'county_fips_code'
+level['access_pa_percent'] <- 'county_fips_code'
+level['rural_percent'] <- 'county_fips_code'
+level['obesity_percent'] <- 'county_fips_code'
+
+
+
+
+
+
+imp_simple <- mice(small_data,
+                   pred = pred_matrix,
+                   method = imp_method,
+                   m = 20,
+                   maxit = 20,
+                   print = TRUE,
+                   seed = 300)
+
+# install.packages('mitml')
+
+
+
+completed <- complete(imp_simple, action = 'long')
+
+inspect_na(completed) %>% 
   show_plot()
-
-county_mice %>% 
-  dplyr::select(county_fips_code, state_fips_code, year_num, violent_crime, access_pa_percent, ltpa_percent) %>% 
-  inspect_na() %>% 
-  show_plot()
-
-library(mice)
-library(miceadds)
-
-small_data <- county_mice %>% 
-  sample_frac(.1)
-
-md.pattern(small_data)
-
-# mice.impute.ml.lme
-
-
-model <- lmer(ltpa_percent ~ year_num + (1 | county_fips_code) + (1 | state_fips_code:county_fips_code), 
-              data = county_mice,
-              REML = FALSE,
-              control = lmerControl(optimizer = 'Nelder_Mead'))
-summary(model)
-
-
-model2 <- lmer(ltpa_percent ~ year_num + violent_crime + access_pa_percent +
-                 (1 | county_fips_code) + (1 | state_fips_code:county_fips_code), 
-               data = county_mice,
-               REML = FALSE,
-               control = lmerControl(optimizer = 'Nelder_Mead'))
-summary(model2)
-
-anova(model, model2)
-

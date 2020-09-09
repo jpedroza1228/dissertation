@@ -22,7 +22,7 @@ county_icc_2level <- function(multi_model){
 
 counties <- function(years){
   
-  link <- glue::glue('C:/Users/cpppe/Desktop/github_shared_folders/dissertation/final_data/county{years}_sub.csv')
+  link <- glue::glue('C:/Users/cpppe/OneDrive/Desktop/github_shared_folders/dissertation/final_data/county{years}_sub.csv')
   
   rio::import(link, setclass = 'tibble')
   
@@ -71,9 +71,11 @@ county <- county %>%
 
 county$year_num <- as.numeric(county$year)
 
+ca <- county %>% 
+  filter(state == 'CA')
 
-
-preliminary_ltpa_long <- lmer(ltpa_percent ~ year_num +(1 | county_fips_code),data = ca,REML = FALSE,
+preliminary_ltpa_long <- lmer(ltpa_percent ~ year_num +(1 | county_fips_code),data = ca,
+                              REML = FALSE,
                                     control = lmerControl(optimizer = 'Nelder_Mead'))
 
 summary(preliminary_ltpa_long)
