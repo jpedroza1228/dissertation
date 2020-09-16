@@ -25,6 +25,9 @@ small_data <- county_mice %>%
 
 str(small_data)
 
+library(mice)
+library(miceadds)
+
 small_data$ltpa_percent <- as.vector(scale(small_data$ltpa_percent,
                                            scale = FALSE))
 

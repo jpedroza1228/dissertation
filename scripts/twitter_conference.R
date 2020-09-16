@@ -22,7 +22,7 @@ county_icc_2level <- function(multi_model){
 
 counties <- function(years){
   
-  link <- glue::glue('C:/Users/cpppe/OneDrive/Desktop/github_shared_folders/dissertation/final_data/county{years}_sub.csv')
+  link <- glue::glue('https://raw.githubusercontent.com/jpedroza1228/dissertation/master/final_data/county{years}_sub.csv')
   
   rio::import(link, setclass = 'tibble')
   
@@ -167,56 +167,106 @@ anova(ltpa_long_access, ltpa_long_int_income)
     
 
 
-
-
-states <- c('united_states',
-            'Alabama','Alaska','Arizona','Arkansas',
-            'California','Colorado','Connecticut',
-            'Delaware',
-            'Florida',
-            'Georgia',
-            'Hawaii',
-            'Idaho','Illinois','Indiana','Iowa',
-            'Kansas','Kentucky',
-            'Louisiana',
-            'Maine','Maryland','Massachusetts','Michigan','Minnesota','Mississippi','Missouri','Montana',
-            'Nebraska','Nevada','New_Hampshire','New_Jersey','New_Mexico','New_York','North_Carolina','North_Dakota',
-            'Ohio','Oklahoma','Oregon',
-            'Pennsylvania',
-            'Rhode_Island',
-            'South_Carolina','South_Dakota',
-            'Tennessee','Texas',
-            'Utah',
-            'Vermont','Virginia',
-            'Washington','West_Virginia','Wisconsin','Wyoming')
-states <- str_to_lower(states)
-
-class(states)
-
-county_sub <- county_sub %>%
-  filter(!county_name %in% states)
-
-
 library(ggmap)
 library(maps)
 library(googleway)
+library(RColorBrewer)
+library(ggrepel)
+display.brewer.all()
 
 
 us <- map_data(map = 'county')
 
+us <- us %>% 
+  janitor::clean_names() %>% 
+  rename(state = region,
+         no_name_county = subregion) 
+
+us$state <- str_replace_all(us$state, pattern = " ", replacement = "_")
+us$no_name_county <- str_replace_all(us$no_name_county, pattern = " ", replacement = "_")
 
 us <- us %>% 
-  rename(county = subregion,
-         state = region)
+  mutate(state = recode(state, 'alabama' = 'AL','alaska' = 'AK','arizona' = 'AZ','arkansas' = 'AR',
+                        'california' = 'CA','colorado' = 'CO','connecticut' = 'CT',
+                        'delaware' = 'DE',
+                        'florida' = 'FL',
+                        'georgia' = 'GA',
+                        'hawaii' = 'HI',
+                        'idaho' = 'ID','illinois' = 'IL','indiana' = 'IN','iowa' = 'IA',
+                        'kansas' = 'KS','kentucky' = 'KY',
+                        'louisiana' = 'LA',
+                        'maine' = 'MA','maryland' = 'MD','massachusetts' = 'MA','michigan' = 'MI','minnesota' = 'MN','mississippi' = 'MS','missouri' = 'MO','montana' = 'MT',
+                        'nebraska' = 'NE','nevada' = 'NV','new_hampshire' = 'NH','new_jersey' = 'NJ','new_mexico' = 'NM','new_york' = 'NY','north_carolina' = 'NC','north_dakota' = 'ND',
+                        'ohio' = 'OH','oklahoma' = 'OK','oregon' = 'OR',
+                        'pennsylvania' = 'PA',
+                        'rhode_island' = 'RI',
+                        'south_carolina' = 'SC','south_dakota' = 'SD',
+                        'tennessee' = 'TN','texas' = 'TX',
+                        'utah' = 'UT',
+                        'vermont' = 'VT','virginia' = 'VA',
+                        'washington' = 'WA','west_virginia' = 'WV','wisconsin' = 'WI','wyoming' = 'WY'))
 
-us$county <- str_to_lower(us$county)
-us$county <- str_replace_all(us$county, pattern = " ",
-                               replacement = "_")
+county <- county %>%
+  mutate(no_name_county = str_replace_all(county_name, '_county', ''))
+
+visual <- right_join(us, county, by = c('state', 'no_name_county'))
+
+ca_visual <- visual %>% 
+  filter(state == 'CA') %>%
+  filter(no_name_county != 'california')
+
+
+describeBy(ca_visual$ltpa_percent, ca_visual$year)
+
 
 library(gganimate)
 
-us <- us %>% 
-  filter(state == 'california') %>% 
-  mutate(state = recode(state, 'california' = 'CA'))
+ca_animate <- ca_visual %>%
+  ggplot(aes(frame = year,
+             cumulative = TRUE)) +
+  geom_polygon(aes(x = long, y = lat, 
+                   group = group, 
+                   fill = ltpa_percent),
+               color = 'black') +
+  scale_fill_gradientn(colors = brewer.pal(n = 5, name = 'RdYlGn')) + 
+  theme_classic() +
+  transition_time(year) +
+  labs(x = 'Longitude',
+       y = 'Latitude',
+       title = 'Leisure-time Physical Activity\nChange Over Time',
+       subtitle = 'Year: {frame_time}') +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size = 12),
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        plot.title = element_text(size = 20),
+        plot.subtitle = element_text(size = 18))
+
+
+ca_animate
+
+anim_save("ltpa_over_time.gif", ca_animate)
+
+
+ca_visual %>% 
+  ggplot(aes(access_pa_percent, ltpa_percent)) +
+  geom_point(aes(color = as.factor(year)), alpha = .3) +
+  geom_smooth(color = 'dodgerblue', method = 'lm', se = FALSE) +
+  viridis::scale_color_viridis(discrete = TRUE) +
+  theme_dark() +
+  theme(legend.title = element_blank()) +
+  labs(x = 'Access to Physical Activity Opportunities',
+       y = 'Leisure-time Physical Activity',
+       title = 'The Statewide Association of Access\nand Physical Activity')
+
+
+ex_an <- ca_visual %>% 
+  ggplot(aes(access_pa_percent, ltpa_percent)) +
+  geom_point(color = 'gray70', alpha = .3) +
+  geom_smooth(aes(color = as.factor(year)), method = 'lm', se = FALSE) +
+  transition_states(year, transition_length = 5, state_length = 3, wrap = TRUE)
+
+ex_an
+
 
 

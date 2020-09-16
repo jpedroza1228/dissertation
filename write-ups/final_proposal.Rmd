@@ -53,7 +53,7 @@ set.seed(07122020)
 ```{r uploading data}
 counties <- function(years){
   
-  link <- glue::glue('C:/Users/cpppe/OneDrive/Desktop/github shared projects/dissertation/final_data/county{years}_sub.csv')
+  link <- glue::glue('https://raw.githubusercontent.com/jpedroza1228/dissertation/master/final_data/county{years}_sub.csv')
   
   rio::import(link, setclass = 'tibble')
   
@@ -65,6 +65,7 @@ county <- map_df(16:20, ~counties(.x))
 ```
 
 ```{r processing data}
+
 county <- county %>% 
   dplyr::select(rowid,
                 state_fips_code:release_year,
@@ -97,14 +98,74 @@ county <- county %>%
                 -percent_hispanic,
                 -percent_rural,
                 -phyact_percent,
-                -physical_inactivity)
+                -physical_inactivity) %>% 
+  filter(fips_code != '0')
+  
+county <- county %>% 
+  filter(str_detect(fips_code, '000$', negate = TRUE))
 
-county <- county %>%
-  filter(!county_name %in% state)
 
 county$year_num <- as.numeric(county$year)
 
+names(county)
+
 county_mice <- county[, -which(colMeans(is.na(county)) >= 0.10)]
+
+inspect_na(county_mice)
+
+county_mice %>% 
+  inspect_na() %>% 
+  show_plot()
+
+county_mice %>% 
+  dplyr::select(county_name, state, violent_crime, access_pa_percent, year_num, ltpa_percent) %>% 
+  filter(state == 'AK') %>%
+  naniar::gg_miss_var(facet = county_name, show_pct = TRUE)
+
+drop <- county_mice %>% 
+  drop_na('violent_crime')
+
+```
+
+
+```{r}
+library(mice)
+library(miceadds)
+
+names(county_mice)
+
+small_data <- county_mice %>% 
+  dplyr::select(rowid:year,
+                poor_or_fair_health,
+                income_inequality,
+                social_associations:violent_crime,
+                air_pollution_particulate_matter,
+                severe_housing_problems:food_insecurity,
+                median_household_income:population,
+                percent_not_proficient_in_english:ltpa_percent,
+                obesity_percent:year_num)
+
+str(small_data)
+
+library(mice)
+library(miceadds)
+
+small_data$ltpa_percent <- as.vector(scale(small_data$ltpa_percent,
+                                           scale = FALSE))
+
+pred_matrix <- make.predictorMatrix(data = small_data)
+imp_method <- make.method(data = small_data)
+
+pred_matrix[, c("county_fips_code", 'state_fips_code')] <- 0
+pred_matrix['state_fips_code', c('ltpa_percent',
+                                 'access_pa_percent')] <- -2
+
+
+imp_cran <- mice(small_data, 
+                 maxit = 100, 
+                 m = 20, 
+                 method = '2l.lmer',
+                 predictorMatrix = pred_matrix)
 ```
 
 
@@ -126,9 +187,11 @@ $$ Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0}) $$
 $$ Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0}) $$
 
 ```{r preliminary model}
-preliminary_ltpa_long <- lmer(ltpa_percent ~ year + (1 | state_fips_code) +
+
+preliminary_ltpa_long <- lmer(ltpa_percent ~ year_num +
+                                (1 | state_fips_code) +
                                 (1 | state_fips_code:county_fips_code), 
-                              data = county,
+                              data = drop,
                               REML = FALSE,
                               control = lmerControl(optimizer = 'Nelder_Mead'))
 
@@ -137,9 +200,19 @@ summary(preliminary_ltpa_long)
 ltpa_null_icc <- as_tibble(VarCorr(preliminary_ltpa_long))
 ltpa_null_icc
 
-total_icc(ltpa_null_icc)
-state_icc(ltpa_null_icc)
-county_state_icc(ltpa_null_icc)
+
+library(mitml)
+
+fit <- with(imp_cran, lme4::lmer(ltpa_percent ~ year_num +
+                                   (1 | state_fips_code) +
+                                   (1 | state_fips_code:county_fips_code), 
+                                 REML = FALSE,
+                                 control = lmerControl(optimizer = 'Nelder_Mead')))
+summary(pool(fit))
+
+testEstimates(as.mitml.result(fit), var.comp = TRUE)$var.comp
+
+# listwise seems appropriate.
 ```
 
 
@@ -162,14 +235,16 @@ $$ Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0}) $$
 $$ Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0}) $$
 
 ```{r controls included model}
-names(county)
-
-ltpa_long_controls <- lmer(ltpa_percent ~ year + violent_crime +
-                             obesity_percent + median_household_income + air_pollution_particulate_matter +
+ltpa_long_controls <- lmer(ltpa_percent ~ year_num +
+                             violent_crime +
+                             obesity_percent +
+                             median_household_income +
+                             air_pollution_particulate_matter +
                              rural_percent + 
                              access_pa_percent +
-                             (1 | state_fips_code) + (1 | state_fips_code:county_fips_code), 
-                           data = county,
+                             (1 | state_fips_code) +
+                             (1 | state_fips_code:county_fips_code), 
+                           data = drop,
                            REML = FALSE,
                            control = lmerControl(optimizer = 'Nelder_Mead'))
 
@@ -178,11 +253,21 @@ summary(ltpa_long_controls)
 ltpa_controls_icc <- as_tibble(VarCorr(ltpa_long_controls))
 ltpa_controls_icc
 
-total_icc(ltpa_controls_icc)
-state_icc(ltpa_controls_icc)
-county_state_icc(ltpa_controls_icc)
 
-# anova(preliminary_ltpa_long, ltpa_long_controls)
+fit_controls <- with(imp_cran, lme4::lmer(ltpa_percent ~ year_num +
+                                            violent_crime +
+                                            obesity_percent +
+                                            median_household_income +
+                                            air_pollution_particulate_matter +
+                                            rural_percent + 
+                                            access_pa_percent +
+                                   (1 | state_fips_code) +
+                                   (1 | state_fips_code:county_fips_code), 
+                                 REML = FALSE,
+                                 control = lmerControl(optimizer = 'Nelder_Mead')))
+summary(pool(fit_controls))
+
+testEstimates(as.mitml.result(fit_controls), var.comp = TRUE)$var.comp
 ```
 
 
@@ -236,17 +321,38 @@ $$ Level 3 :
 
 ```{r random slope model}
 ltpa_long_access_random <- lmer(ltpa_percent ~ year_num + violent_crime +
-                           obesity_percent +
-                           median_household_income + air_pollution_particulate_matter +
-                           rural_percent + 
-                           access_pa_percent + (access_pa_percent | state_fips_code) + (access_pa_percent | state_fips_code:county_fips_code), 
-                         data = county,
-                         REML = FALSE,
-                         control = lmerControl(optimizer = 'Nelder_Mead'))
+                                  obesity_percent +
+                                  median_household_income + air_pollution_particulate_matter +
+                                  rural_percent + 
+                                  access_pa_percent + (access_pa_percent | state_fips_code) + (access_pa_percent | state_fips_code:county_fips_code), 
+                                data = drop,
+                                REML = FALSE,
+                                control = lmerControl(optimizer = 'Nelder_Mead'))
 
 summary(ltpa_long_access_random)
 
+ltpa_random_icc <- as_tibble(VarCorr(ltpa_long_access_random))
+ltpa_random_icc
+
 anova(ltpa_long_controls, ltpa_long_access_random)
+
+
+
+
+fit_random <- with(imp_cran, lme4::lmer(ltpa_percent ~ year_num +
+                                            violent_crime +
+                                            obesity_percent +
+                                            median_household_income +
+                                            air_pollution_particulate_matter +
+                                            rural_percent + 
+                                            access_pa_percent +
+                                            (access_pa_percent | state_fips_code) +
+                                            (access_pa_percent | state_fips_code:county_fips_code), 
+                                          REML = FALSE,
+                                          control = lmerControl(optimizer = 'Nelder_Mead')))
+summary(pool(fit_random))
+
+testEstimates(as.mitml.result(fit_random), var.comp = TRUE)$var.comp
 
 ```
 
@@ -302,18 +408,19 @@ $$ Level 3 :
 
 ```{r household income interaction model}
 ltpa_long_access_int <- lmer(ltpa_percent ~ year_num + violent_crime +
-                           obesity_percent +
-                           air_pollution_particulate_matter +
-                           rural_percent + 
-                           access_pa_percent*median_household_income + 
-                           (access_pa_percent | state_fips_code) + (access_pa_percent | state_fips_code:county_fips_code), 
-                         data = county,
-                         REML = FALSE,
-                         control = lmerControl(optimizer = 'Nelder_Mead'))
+                               obesity_percent +
+                               air_pollution_particulate_matter +
+                               rural_percent + 
+                               access_pa_percent*median_household_income + 
+                               (access_pa_percent | state_fips_code) + (access_pa_percent | state_fips_code:county_fips_code), 
+                             data = drop,
+                             REML = FALSE,
+                             control = lmerControl(optimizer = 'Nelder_Mead'))
 
 summary(ltpa_long_access_int)
 
 anova(ltpa_long_access_random, ltpa_long_access_int)
+
 
 ```
 
@@ -366,20 +473,22 @@ $$ Level 3 :
 \end{array}\right)  $$
 
 ```{r latino interaction model}
+
 ltpa_long_access_latino_int <- lmer(ltpa_percent ~ year_num + violent_crime +
-                           obesity_percent +
-                           air_pollution_particulate_matter +
-                           rural_percent + 
-                           median_household_income +
-                           access_pa_percent*latino_percent +
-                           (access_pa_percent | state_fips_code) + (access_pa_percent | state_fips_code:county_fips_code), 
-                         data = county,
-                         REML = FALSE,
-                         control = lmerControl(optimizer = 'Nelder_Mead'))
+                                      obesity_percent +
+                                      air_pollution_particulate_matter +
+                                      rural_percent + 
+                                      median_household_income +
+                                      access_pa_percent*latino_percent +
+                                      (access_pa_percent | state_fips_code) + (access_pa_percent | state_fips_code:county_fips_code), 
+                                    data = drop,
+                                    REML = FALSE,
+                                    control = lmerControl(optimizer = 'Nelder_Mead'))
 
 summary(ltpa_long_access_latino_int)
 
 anova(ltpa_long_access_random, ltpa_long_access_latino_int)
+
 ```
 
 
