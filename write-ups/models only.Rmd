@@ -4,71 +4,85 @@ author: "JP"
 date: "4/20/2020"
 output:
   word_document: default
-  html_document: default
+  html_document:
+    df_print: paged
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Model Equations
+# Model Equations
 
-$$ Fixed Effect: LTPA_{ti} = \beta_{0i} + \beta_{1i}(year_{ti}) + \epsilon_{0ti} $$
+## Hypothesis 1 & 2
+$$  Access_{tij} = \beta_0 + \beta_{1}(year_{tij}) + \beta_{2}(latino_{ij}) + \beta_{3}(medianhouseholdincome_{ij}) + \nu_{0j} + \mu_{0ij} + \epsilon_{0tij}  $$
 
-$$ Random Effect: \beta_{0i} = \beta_0 + \mu_{0i}  $$
+$$ Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})  $$
 
-$$ Combined: LTPA_{ti} = \beta_0 + \beta_{1}(year_{ti}) + \mu_{0i}(year_{0ti}) + \epsilon_{0ti} $$
+$$ Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0}) $$
 
-$$ Level 2: [\mu_{0i}] \sim N(0, \sigma^2_{\mu0}) $$
-
-$$ Level 1: [\epsilon_{0ti}] \sim N(0,\sigma^2_{\epsilon0}) $$
-
+$$ Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0}) $$
 
 
-$$ Fixed Effect: AccessPA_{ti} = \beta_{0i} + \beta_{1i}(year_{ti}) + \epsilon_{0ti} $$
+## Hypothesis 3
 
-$$ Random Effect: \beta_{0i} = \beta_0 + \mu_{0i}  $$
+$$  LTPA_{tij} = \beta_0 + \beta_{1}(year_{tij}) + \nu_{0j} + \mu_{0ij} + \epsilon_{0tij}  $$
 
-$$ Combined: AccessPA_{ti} = \beta_0 + \beta_{1}(year_{ti}) + \mu_{0i}(year_{0ti}) + \epsilon_{0ti} $$
+$$ Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})  $$
 
-$$ Level 2: [\mu_{0i}] \sim N(0, \sigma^2_{\mu0}) $$
+$$ Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0}) $$
 
-$$ Level 1: [\epsilon_{0ti}] \sim N(0,\sigma^2_{\epsilon0}) $$
+$$ Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0}) $$
+
+## Hypothesis 4
+
+$$ LTPA_{tij} = \beta_0 + \beta_{1}(year_{tij}) + \beta_{2}(access_{ij}) + \nu_{0j} + \mu_{0ij} + \epsilon_{0tij} $$
+
+$$ Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})  $$
+
+$$ Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0}) $$
+
+$$ Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0}) $$
+
+## Hypothesis 5
+
+$$ LTPA_{tij} = \beta_0 + \beta_{1}(year_{tij}) + \beta_{2}(access_{ij}) + \beta_{3}(rural_{ij}) + \beta_{4}(crime_{ij}) + \beta_{5}(airpollution_{ij}) + \beta_{6}(socialassociation_{ij}) + \beta_{7}(obesity_{ij}) + \beta_{8}(latino_{ij}) + \beta_{9}(medianhouseholdincome_{ij}) + \beta_{10}(65plus_{ij}) + \beta_{11}(poorfairhealth_{ij}) + \nu_{0j} + \mu_{0ij} + \epsilon_{0tij}  $$
+
+$$ Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})  $$
+
+$$ Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0}) $$
+
+$$ Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0}) $$
+
+## Hypothesis 6
+
+$$ LTPA_{tij} = \beta_0 + \beta_{1}(year_{tij}) + \beta_{2}(access_{ij}) + \beta_{3}(year_{tij}*access_{ij}) + \beta_{4}(rural_{ij}) + \beta_{5}(crime_{ij}) + \beta_{6}(airpollution_{ij}) + \beta_{7}(socialassociation_{ij}) + \beta_{8}(obesity_{ij}) + \beta_{9}(latino_{ij}) + \beta_{10}(medianhouseholdincome_{ij}) + \beta_{11}(65plus_{ij}) + \beta_{12}(poorfairhealth_{ij}) + \nu_{0j} + \nu_{1j}(access_{tij}) + \mu_{0ij} + \mu_{1ij}(access_{ij}) + \epsilon_{0tij}  $$
+
+$$ Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})  $$
+
+$$ Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0}) $$
+
+$$ Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0}) $$
+
+## Hypothesis 7
+
+$$ LTPA_{tij} = \beta_0 + \beta_{1}(year_{tij}) + \beta_{2}(access_{ij}) + 
+\beta_{3}(latino_{ij}) + \beta_{4}(latino_{ij}*access_{ij}) + \beta_{5}(rural_{ij}) + \beta_{6}(crime_{ij}) + \beta_{7}(airpollution_{ij}) + \beta_{8}(socialassociation_{ij}) + \beta_{9}(obesity_{ij}) + \beta_{10}(medianhouseholdincome_{ij}) + \beta_{11}(65plus_{ij}) + \beta_{12}(poorfairhealth_{ij}) + \nu_{0j} + \nu_{1j}(access_{tij}) + \mu_{0ij} + \mu_{1ij}(access_{ij}) + \epsilon_{0tij}  $$
+
+$$ Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})  $$
+
+$$ Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0}) $$
+
+$$ Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0}) $$
 
 
+## Hypothesis 8
 
-$$ Fixed Effect: LTPA_{ti} = \beta_{0i} + \beta_{1i}(Year_{ti}) + \beta_{2i}(ViolentCrime_{ti})+ \beta_{3i}(Obesity_{ti}) + \beta_{4i}(SomeCollege_{ti}) + \beta_{5i}(IncomeInequality_{ti}) + \beta_{6i}(AirPollution_{ti}) + \beta_{7i}(DrivingAlone_{ti}) + \beta_{8i}(Rurality_{ti}) + \epsilon_{0ti} $$
+$$ LTPA_{tij} = \beta_0 + \beta_{1}(year_{tij}) + \beta_{2}(access_{ij}) + \beta_{3}(medianhouseholdincome_{ij}) \beta_{4}(medianhouseholdincome_{ij}*access_{ij}) + \beta_{5}(rural_{ij}) + \beta_{6}(crime_{ij}) + \beta_{7}(airpollution_{ij}) + \beta_{8}(socialassociation_{ij}) + \beta_{9}(obesity_{ij}) + \beta_{10}(latino_{ij}) + \beta_{11}(65plus_{ij}) + \beta_{12}(poorfairhealth_{ij}) + \nu_{0j} + \mu_{0ij} + \epsilon_{0tij} $$
 
-$$ Random Effect: \beta_{0i} = \beta_0 + \mu_{0i}  $$
+$$ Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})  $$
 
-$$ Combined: LTPA_{ti} = \beta_0 + \beta_{1}(year_{ti}) + \beta_{2}(ViolentCrime_{ti})+ \beta_{3}(Obesity_{ti}) + \beta_{4}(SomeCollege_{ti}) + \beta_{5}(IncomeInequality_{ti}) + \beta_{6}(AirPollution_{ti}) + \beta_{7}(DrivingAlone_{ti}) + \beta_{8}(Rurality_{ti}) + \mu_{0i}(year_{0ti}) + \epsilon_{0ti} $$
+$$ Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0}) $$
 
-$$ Level 2: [\mu_{0i}] \sim N(0, \sigma^2_{\mu0}) $$
-
-$$ Level 1: [\epsilon_{0ti}] \sim N(0,\sigma^2_{\epsilon0}) $$
-
-
-
-$$ Fixed Effect: LTPA_{ti} = \beta_{0i} + \beta_{1i}(Year_{ti}) + \beta_{2i}(ViolentCrime_{ti})+ \beta_{3i}(Obesity_{ti}) + \beta_{4i}(SomeCollege_{ti}) + \beta_{5i}(IncomeInequality_{ti}) + \beta_{6i}(AirPollution_{ti}) + \beta_{7i}(DrivingAlone_{ti}) + \beta_{8i}(Rurality_{ti}) + \beta_{9i}(AccessPA_{ti}) + \epsilon_{0ti} $$
-
-$$ Random Effect: \beta_{0i} = \beta_0 + \mu_{0i}  $$
-
-$$ Combined: LTPA_{ti} = \beta_0 + \beta_{1}(year_{ti}) + \beta_{2}(ViolentCrime_{ti})+ \beta_{3}(Obesity_{ti}) + \beta_{4}(SomeCollege_{ti}) + \beta_{5}(IncomeInequality_{ti}) + \beta_{6}(AirPollution_{ti}) + \beta_{7}(DrivingAlone_{ti}) + \beta_{8}(Rurality_{ti}) + \beta_{9}(AccessPA_{ti}) + \mu_{0i}(year_{0ti}) + \epsilon_{0ti} $$
-
-$$ Level 2: [\mu_{0i}] \sim N(0, \sigma^2_{\mu0}) $$
-
-$$ Level 1: [\epsilon_{0ti}] \sim N(0,\sigma^2_{\epsilon0}) $$
-
-
-
-$$ Fixed Effect: LTPA_{ti} = \beta_{0i} + \beta_{1i}(Year_{ti}) + \beta_{2i}(ViolentCrime_{ti})+ \beta_{3i}(Obesity_{ti}) + \beta_{4i}(SomeCollege_{ti}) + \beta_{5i}(IncomeInequality_{ti}) + \beta_{6i}(AirPollution_{ti}) + \beta_{7i}(DrivingAlone_{ti}) + \beta_{8i}(Rurality_{ti}) + \beta_{9i}(AccessPA_{ti}) + \beta_{10i}(LatinoPercent_{ti}) + \beta_{11i}(AccessPA*LatinoPercent_{ti}) + \epsilon_{0ti} $$
-
-$$ Random Effect: \beta_{0i} = \beta_0 + \mu_{0i}  $$
-
-$$ Combined: LTPA_{ti} = \beta_0 + \beta_{1}(year_{ti}) + \beta_{2}(ViolentCrime_{ti})+ \beta_{3}(Obesity_{ti}) + \beta_{4}(SomeCollege_{ti}) + \beta_{5}(IncomeInequality_{ti}) + \beta_{6}(AirPollution_{ti}) + \beta_{7}(DrivingAlone_{ti}) + \beta_{8}(Rurality_{ti}) + \beta_{9}(AccessPA_{ti}) + \beta_{10}(LatinoPercent_{ti}) + \beta_{11}(AccessPA*LatinoPercent_{ti}) + \mu_{0i}(year_{0ti}) + \epsilon_{0ti} $$
-
-$$ Level 2: [\mu_{0i}] \sim N(0, \sigma^2_{\mu0}) $$
-
-$$ Level 1: [\epsilon_{0ti}] \sim N(0,\sigma^2_{\epsilon0}) $$
-
-
+$$ Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0}) $$

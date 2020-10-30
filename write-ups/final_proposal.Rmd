@@ -45,6 +45,7 @@ library(psych)
 library(lme4)
 library(lmerTest)
 library(optimx)
+library(dfoptim)
 
 options(max.print = 99999)
 options(scipen = 999)
@@ -117,6 +118,7 @@ names(county)
 
 county_mice <- county[, -which(colMeans(is.na(county)) >= 0.10)]
 
+inspect_na(county)
 inspect_na(county_mice)
 
 county_mice %>% 
@@ -132,6 +134,38 @@ drop <- county_mice %>%
   drop_na('violent_crime')
 
 ```
+
+
+```{r preliminary visualizations}
+states <- drop %>% 
+  group_by(state) %>% 
+  nest()
+
+drop %>% 
+  filter(state == 'IL') %>% 
+  ggplot(aes(access_pa_percent, ltpa_percent)) +
+  geom_point(color = 'gray70', alpha = .7) +
+  geom_smooth(method = lm, se = FALSE, aes(color = county_name)) +
+  theme(legend.position = 'none')
+
+county_per_state_plot <- function(data, state){
+  {{data}} %>% 
+    filter(state == {{state}}) %>% 
+    ggplot(aes(access_pa_percent, ltpa_percent)) +
+                        geom_point(color = 'gray70', alpha = .7) +
+  geom_smooth(method = lm, se = FALSE)
+}
+
+county_per_state_plot(drop, 'IL') +
+  geom_point(aes(color = as.factor(year))) +
+  facet_wrap(~county_name)
+
+# state_county_plots <- states %>% 
+#   mutate(plots = map2(data, drop$county_name, 
+#                       ~county_per_state_plot(.x, .y)))
+
+```
+
 
 
 ```{r}
@@ -194,6 +228,18 @@ $$ Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0}) $$
 
 ```{r preliminary model}
 
+model_optimizer <- lmer(ltpa_percent ~ year_num +
+                                (1 | state_fips_code) +
+                                (1 | state_fips_code:county_fips_code),
+                              data = drop,
+                              REML = FALSE)
+
+summary(model_optimizer)
+# summary(allFit(model_optimizer))
+
+# https://joshua-nugent.github.io/allFit/
+# https://rstudio-pubs-static.s3.amazonaws.com/33653_57fc7b8e5d484c909b615d8633c01d51.html
+
 preliminary_ltpa_long <- lmer(ltpa_percent ~ year_num +
                                 (1 | state_fips_code) +
                                 (1 | state_fips_code:county_fips_code), 
@@ -241,6 +287,7 @@ $$ Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0}) $$
 $$ Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0}) $$
 
 ```{r controls included model}
+
 ltpa_long_controls <- lmer(ltpa_percent ~ year_num +
                              violent_crime +
                              obesity_percent +

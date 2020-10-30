@@ -66,8 +66,6 @@ county <- county %>%
                 -phyact_percent,
                 -physical_inactivity)
 
-county <- county %>%
-  filter(!county_name %in% state)
 
 county$year_num <- as.numeric(county$year)
 
@@ -86,8 +84,8 @@ ltpa_null_icc
 
 county_icc_2level(ltpa_null_icc)
 
-ltpa_long_access <- lmer(ltpa_percent ~ year_num + violent_crime +obesity_percent +median_household_income + rural_percent + latino_percent +
-                           access_pa_percent + (1 | county_fips_code), data = ca,
+ltpa_long_access <- lmer(ltpa_percent ~ year_num + violent_crime + obesity_percent + median_household_income + rural_percent + access_pa_percent
+                           (1 | county_fips_code), data = ca,
                          REML = FALSE,control = lmerControl(optimizer = 'Nelder_Mead'))
 
 summary(ltpa_long_access)
