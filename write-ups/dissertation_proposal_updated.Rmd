@@ -1,0 +1,502 @@
+---
+title: "Examining County-level Factors Associated with Leisure-time Physical Activity in the United States"
+author: "Jonathan A. Pedroza"
+institute: "University of Oregon"
+date: "11/1/2020 (updated: `r Sys.Date()`)"
+output:
+  xaringan::moon_reader:
+    lib_dir: libs
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+    seal: false
+---
+
+class: center, inverse
+
+# Examining County-level Factors Associated with Leisure-time Physical Activity in the United States
+
+## Jonathan A. Pedroza, MA
+## November 17th, 2020
+
+### Chair
+Elizabeth L. Budd, PhD, MPH
+
+### Committee
+Atika Khurana, PhD, Nichole R. Kelly, PhD, & Raoul L. Lievanos, PhD 
+
+---
+
+class: center, middle
+
+# Background
+
+```{r, include = FALSE}
+library(tidyverse)
+library(maps)
+library(psych)
+library(inspectdf)
+library(mice)
+library(miceadds)
+library(lme4)
+library(lmerTest)
+library(optimx)
+library(mitml)
+library(sundry)
+
+set.seed(07122020)
+
+counties <- function(years){
+  
+  link <- glue::glue('https://raw.githubusercontent.com/jpedroza1228/dissertation/master/final_data/county{years}_sub.csv')
+  
+  rio::import(link, setclass = 'tibble')
+  
+}
+
+counties(19)
+county <- map_df(16:20, ~counties(.x))
+
+county <- county %>% 
+  dplyr::select(rowid,
+                state_fips_code:release_year,
+                poor_or_fair_health:access_to_exercise_opportunities,
+                preventable_hospital_stays,
+                some_college:driving_alone_to_work,
+                food_insecurity:uninsured_children,
+                median_household_income:percent_rural) %>% 
+  rename(year = release_year,
+         state = state_abbreviation) %>% 
+  mutate(phyact_percent = (physical_inactivity*100),
+         ltpa_percent = (100 - phyact_percent)) %>% 
+  rename(access_pa = access_to_exercise_opportunities) %>% 
+  mutate(smoking_percent = adult_smoking*100,
+         obesity_percent = adult_obesity*100,
+         access_pa_percent = access_pa*100,
+         college_percent = some_college*100,
+         unemployment_percent = unemployment*100,
+         driving_alone_percent = driving_alone_to_work*100,
+         percent_65plus = percent_65_and_older*100,
+         latino_percent = percent_hispanic*100,
+         rural_percent = percent_rural*100) %>% 
+  dplyr::select(-adult_smoking,
+                -adult_obesity,
+                -access_pa,
+                -some_college,
+                -unemployment,
+                -driving_alone_to_work,
+                -percent_65_and_older,
+                -percent_hispanic,
+                -percent_rural,
+                -phyact_percent,
+                -physical_inactivity) %>% 
+  filter(fips_code != '0')
+  
+county <- county %>% 
+  filter(str_detect(fips_code, '000$', negate = TRUE))
+
+
+county$year_num <- as.numeric(county$year)
+
+names(county)
+
+county_mice <- county[, -which(colMeans(is.na(county)) >= 0.10)]
+```
+
+---
+
+# Physical Activity Levels in the United States
+
+
+---
+
+# Access & Physical Activity
+
+## Roles of Latina/o Populations & Income
+
+- dfjasdfk
+- jdfja;sdf
+
+---
+
+class: center, middle
+
+# Rationale for Current Study
+
+---
+
+# Framework
+
+
+---
+
+# Gaps in the Literature
+
+---
+
+# Current Study
+
+
+---
+
+class: center, middle
+
+# Research Questions & Hypotheses
+
+---
+
+## RQ1 
+
+- Does this work?
+
+## H1 
+
+- This works because...
+
+## Hypothesis 1 & 2
+
+
+.pull-left[
+$$
+\begin{aligned}
+Access_{tij} = \beta_0 + \beta_{1}(year_{tij}) +\\ \beta_{2}(latino_{ij}) +\\
+\beta_{3}(medianhouseholdincome_{ij}) +\\
+\nu_{0j} + \mu_{0ij} + \epsilon_{0tij}
+\end{aligned}
+$$
+]
+
+.pull-right[
+$$Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})$$
+
+$$Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0})$$
+
+$$Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0})$$
+]
+
+
+---
+
+## RQ2 
+
+- Does this work?
+
+## H2
+
+- This works because...
+
+
+
+$$LTPA_{tij} = \beta_0 + \beta_{1}(year_{tij}) + \nu_{0j} + \mu_{0ij} + \epsilon_{0tij}$$
+
+$$Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})$$
+
+$$Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0})$$
+
+$$Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0})$$
+
+---
+
+$$LTPA_{tij} = \beta_0 + \beta_{1}(year_{tij}) + \beta_{2}(access_{ij}) +
+\nu_{0j} + \mu_{0ij} + \epsilon_{0tij}$$
+
+$$Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})$$
+
+$$Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0})$$
+
+$$Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0})$$
+
+---
+
+## RQ3
+
+- Does this work?
+
+## H3
+
+- This works because...
+
+
+$$LTPA_{tij} = \beta_0 + \beta_{1}(year_{tij}) + \beta_{2}(access_{ij}) + \beta_{3}(rural_{ij}) +
+\beta_{4}(crime_{ij}) + \beta_{5}(airpollution_{ij}) + \beta_{6}(socialassociation_{ij}) +
+\beta_{7}(obesity_{ij}) + \beta_{8}(latino_{ij}) +
+\beta_{9}(medianhouseholdincome_{ij}) +
+\beta_{10}(65plus_{ij}) + \beta_{11}(poorfairhealth_{ij}) +
+\nu_{0j} + \mu_{0ij} + \epsilon_{0tij}$$
+
+$$Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})$$
+
+$$Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0})$$
+
+$$Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0})$$
+
+---
+
+## RQ4
+
+- Does this work?
+
+## H4 
+
+- This works because...
+
+
+$$LTPA_{tij} = \beta_0 + \beta_{1}(year_{tij}) + \beta_{2}(access_{ij}) +
+\beta_{3}(year_{tij}*access_{ij}) +
+\beta_{4}(rural_{ij}) + \beta_{5}(crime_{ij}) + \beta_{6}(airpollution_{ij}) +
+\beta_{7}(socialassociation_{ij}) + \beta_{8}(obesity_{ij}) + \beta_{9}(latino_{ij}) +
+\beta_{10}(medianhouseholdincome_{ij}) +
+\beta_{11}(65plus_{ij}) + \beta_{12}(poorfairhealth_{ij}) +
+\nu_{0j} + \mu_{0ij} + \epsilon_{0tij}$$
+
+$$Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})$$
+
+$$Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0})$$
+
+$$Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0})$$
+
+
+---
+
+## RQ5 
+
+- Does this work?
+
+## H5 
+
+- This works because...
+
+
+$$LTPA_{tij} = \beta_0 + \beta_{1}(year_{tij}) + \beta_{2}(access_{ij}) + \beta_{3}(latino_{ij}) +
+\beta_{4}(latino_{ij}*access_{ij}) + \beta_{5}(rural_{ij}) +
+\beta_{6}(crime_{ij}) + \beta_{7}(airpollution_{ij}) + \beta_{8}(socialassociation_{ij}) +
+\beta_{9}(obesity_{ij}) + \beta_{10}(medianhouseholdincome_{ij}) +
+\beta_{11}(65plus_{ij}) + \beta_{12}(poorfairhealth_{ij}) +
+\nu_{0j} + \mu_{0ij} + \epsilon_{0tij}$$
+
+$$Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})$$
+
+$$Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0})$$
+
+$$Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0})$$
+
+---
+
+
+$$LTPA_{tij} = \beta_0 + \beta_{1}(year_{tij}) + \beta_{2}(access_{ij}) +
+\beta_{3}(medianhouseholdincome_{ij}) \beta_{4}(medianhouseholdincome_{ij}*access_{ij}) +
+\beta_{5}(rural_{ij}) + \beta_{6}(crime_{ij}) + \beta_{7}(airpollution_{ij}) +
+\beta_{8}(socialassociation_{ij}) + \beta_{9}(obesity_{ij}) + \beta_{10}(latino_{ij}) +
+\beta_{11}(65plus_{ij}) + \beta_{12}(poorfairhealth_{ij}) +
+\nu_{0j} + \mu_{0ij} + \epsilon_{0tij}$$
+
+$$Level 1: [\epsilon_{0tij}] \sim N(0,\sigma^2_{e0})$$
+
+$$Level 2: [\mu_{0ij}] \sim N(0, \sigma^2_{u0})$$
+
+$$Level 3: [\nu_{0j}] \sim N(0, \sigma^2_{v0})$$
+
+
+
+---
+
+class: center, middle
+
+# Methods
+
+
+---
+
+# Participants
+
+- unit of measurment for this study are all counties in the United States
+
+- data was gathered through the [County Health Rankings](https://www.countyhealthrankings.org/)
+
+```{r, echo = FALSE, eval = TRUE}
+
+us <- map_data(map = 'county')
+
+us <- map_data(map = 'county')
+
+us <- us %>% 
+  janitor::clean_names() %>% 
+  rename(state = region,
+         no_name_county = subregion) 
+
+us$state <- str_replace_all(us$state, pattern = " ", replacement = "_")
+us$no_name_county <- str_replace_all(us$no_name_county, pattern = " ", replacement = "_")
+
+us <- us %>% 
+  mutate(state = recode(state, 'alabama' = 'AL','alaska' = 'AK','arizona' = 'AZ','arkansas' = 'AR',
+            'california' = 'CA','colorado' = 'CO','connecticut' = 'CT',
+            'delaware' = 'DE',
+            'florida' = 'FL',
+            'georgia' = 'GA',
+            'hawaii' = 'HI',
+            'idaho' = 'ID','illinois' = 'IL','indiana' = 'IN','iowa' = 'IA',
+            'kansas' = 'KS','kentucky' = 'KY',
+            'louisiana' = 'LA',
+            'maine' = 'MA','maryland' = 'MD','massachusetts' = 'MA','michigan' = 'MI','minnesota' = 'MN','mississippi' = 'MS','missouri' = 'MO','montana' = 'MT',
+            'nebraska' = 'NE','nevada' = 'NV','new_hampshire' = 'NH','new_jersey' = 'NJ','new_mexico' = 'NM','new_york' = 'NY','north_carolina' = 'NC','north_dakota' = 'ND',
+            'ohio' = 'OH','oklahoma' = 'OK','oregon' = 'OR',
+            'pennsylvania' = 'PA',
+            'rhode_island' = 'RI',
+            'south_carolina' = 'SC','south_dakota' = 'SD',
+            'tennessee' = 'TN','texas' = 'TX',
+            'utah' = 'UT',
+            'vermont' = 'VT','virginia' = 'VA',
+            'washington' = 'WA','west_virginia' = 'WV','wisconsin' = 'WI','wyoming' = 'WY'))
+
+us %>% 
+  ggplot(aes(x = long, y = lat, group = group)) +
+  geom_polygon(fill = 'black', aes(color = state), size = .5) +
+  coord_fixed(1.2) +
+  viridis::scale_color_viridis(discrete = TRUE, option = 5) +
+  theme_void() +
+  theme(legend.position = 'none')
+
+
+```
+
+--- 
+
+class: center, middle
+
+# Measures
+
+---
+
+# Environmental Factors
+
+## Leisure-time Physical Activity
+
+- adjfkl;
+- dfjaskldf;jas
+- jsakf;jaskd
+
+## Access to Physical Activity Opportunities
+
+- adjfkl;
+- dfjaskldf;jas
+- jsakf;jaskd
+
+---
+
+# Environmental Factors (cont.)
+
+## Percent Rurality
+
+- adjfkl;
+- dfjaskldf;jas
+- jsakf;jaskd
+
+## Violent Crime Rates
+
+- adjfkl;
+- dfjaskldf;jas
+- jsakf;jaskd
+
+---
+
+# Environmental Factors (cont.)
+
+## Air Pollution
+
+- adjfkl;
+- dfjaskldf;jas
+- jsakf;jaskd
+
+---
+
+# Interpersonal Factors
+
+## Social Associations
+
+- fjaksdlfj;sa
+- asljf;asdf
+- ljdfa;sfjkd
+
+
+---
+
+# Individual Factors
+
+## Percentage of Adults with Larger BMI
+
+- fa;ljsdk;fla
+- klfja;sfjkl
+- js;dfkja;sdjf
+
+## Percentage of Latina/o Residents
+
+- fa;ljsdk;fla
+- klfja;sfjkl
+- js;dfkja;sdjf
+
+---
+
+# Individual Factors (cont.)
+
+## Median Household Income
+
+- fa;ljsdk;fla
+- klfja;sfjkl
+- js;dfkja;sdjf
+
+## Percentage of Adults Age 65 and Older
+
+- fa;ljsdk;fla
+- klfja;sfjkl
+- js;dfkja;sdjf
+
+---
+
+# Individual Factors (cont.)
+
+## Percentage of Adults in Poor or Fair Health
+
+- lkasjd;f
+- jasl;dfjasd;
+- jskad;fjasdkl
+
+---
+
+class: center, middle
+
+# Analytic Plan
+
+---
+
+# Missing data
+
+```{r}
+inspect_na(county_mice) %>% 
+  show_plot()
+```
+
+---
+
+# Model Assumptions
+
+- la;sdfk'asdkf
+- sakl'fsd'k
+- asdfjkal;sdfja;s
+- as;jkdf;klasdjf;klsajfkl;
+
+---
+
+# Analyses
+
+- Random-intercept models to answer all hypotheses
+  + the slopes of the associations for the counties and states do not differ 
+- Maximum likelihood/Restricted Maximum Likelihood
+- Likelihood ratio tests will be conducted to examine differences between competing models
+  + A significant test will assess whether the inclusion/exclusion of fixed and random effects resulted in a better fitting model
+- Intraclass correlation coefficients will assess 
+
+---
+
+
+
