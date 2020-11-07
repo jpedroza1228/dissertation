@@ -1,18 +1,16 @@
----
-title: "Examining County-level Factors Associated with Leisure-time Physical Activity in the United States"
-author: "Jonathan A. Pedroza"
-institute: "University of Oregon"
-date: "11/1/2020 (updated: `r Sys.Date()`)"
-output:
-  xaringan::moon_reader:
-    css: [uo, uo-fonts]
-    lib_dir: libs
-    nature:
-      highlightStyle: github
-      highlightLines: true
-      countIncrementalSlides: false
-    seal: false
----
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Examining County-level Factors Associated with Leisure-time Physical Activity in the United States</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Jonathan A. Pedroza" />
+    <script src="libs/header-attrs-2.5/header-attrs.js"></script>
+    <link href="libs/remark-css-0.0.1/uo.css" rel="stylesheet" />
+    <link href="libs/remark-css-0.0.1/uo-fonts.css" rel="stylesheet" />
+  </head>
+  <body>
+    <textarea id="source">
+
 
 class: center, inverse
 
@@ -25,7 +23,7 @@ class: center, inverse
 Elizabeth L. Budd, PhD, MPH
 
 ### Committee
-Atika Khurana, PhD, Nichole R. Kelly, PhD, & Raoul L. Lievanos, PhD 
+Atika Khurana, PhD, Nichole R. Kelly, PhD, &amp; Raoul L. Lievanos, PhD 
 
 ---
 
@@ -33,91 +31,7 @@ class: center, middle
 
 # Background
 
-```{r, include = FALSE}
-library(tidyverse)
-library(maps)
-library(psych)
-library(inspectdf)
-library(mice)
-library(miceadds)
-library(lme4)
-library(lmerTest)
-library(optimx)
-library(mitml)
-library(sundry)
 
-set.seed(07122020)
-
-counties <- function(years){
-  
-  link <- glue::glue('https://raw.githubusercontent.com/jpedroza1228/dissertation/master/final_data/county{years}_sub.csv')
-  
-  rio::import(link, setclass = 'tibble')
-  
-}
-
-counties(19)
-county <- map_df(16:20, ~counties(.x))
-
-county <- county %>% 
-  dplyr::select(rowid,
-                state_fips_code:release_year,
-                poor_or_fair_health:access_to_exercise_opportunities,
-                preventable_hospital_stays,
-                some_college:driving_alone_to_work,
-                food_insecurity:uninsured_children,
-                median_household_income:percent_rural) %>% 
-  rename(year = release_year,
-         state = state_abbreviation) %>% 
-  mutate(phyact_percent = (physical_inactivity*100),
-         ltpa_percent = (100 - phyact_percent)) %>% 
-  rename(access_pa = access_to_exercise_opportunities) %>% 
-  mutate(smoking_percent = adult_smoking*100,
-         obesity_percent = adult_obesity*100,
-         access_pa_percent = access_pa*100,
-         college_percent = some_college*100,
-         unemployment_percent = unemployment*100,
-         driving_alone_percent = driving_alone_to_work*100,
-         percent_65plus = percent_65_and_older*100,
-         latino_percent = percent_hispanic*100,
-         rural_percent = percent_rural*100) %>% 
-  dplyr::select(-adult_smoking,
-                -adult_obesity,
-                -access_pa,
-                -some_college,
-                -unemployment,
-                -driving_alone_to_work,
-                -percent_65_and_older,
-                -percent_hispanic,
-                -percent_rural,
-                -phyact_percent,
-                -physical_inactivity) %>% 
-  filter(fips_code != '0')
-  
-county <- county %>% 
-  filter(str_detect(fips_code, '000$', negate = TRUE))
-
-
-county$year_num <- as.numeric(county$year)
-
-names(county)
-
-county_mice <- county[, -which(colMeans(is.na(county)) >= 0.10)]
-
-mice16 <- county_mice %>% 
-  filter(year == 2016)
-
-counties_for_2016 <- mice16 %>% 
-  summarize(name = n()) %>% 
-  count(name)
-
-mice20 <- county_mice %>% 
-  filter(year == 2020)
-
-counties_for_2020 <- mice20 %>% 
-  summarize(name = n()) %>% 
-  count(name)
-```
 
 ---
 
@@ -211,7 +125,7 @@ class: center, middle
 
 class: center, middle
 
-# Research Questions & Hypotheses
+# Research Questions &amp; Hypotheses
 
 ---
 
@@ -229,24 +143,24 @@ class: center, middle
 - H3: Higher: 1) percentage rurality, 2) percentage of Latinx residents, 4) percentage of Black/African American residents, 5) rates of violent crimes, 6) percentage of older adults, 7) percentage of adults with poor or fair health, as well as lower median household incomes and less social associations will be associated with less leisure-time physical activity engagement at a national level while adjusting for state-level variation.
 
 $$
-\begin{aligned}
+`\begin{aligned}
 LTPA_{ij} = \beta_0 + \beta_{1}(access_{ij}) + \beta_{2}(rural_{ij}) +\\
 \beta_{3}(crime_{ij}) + \beta_{4}(socialassociation_{ij}) +\\
 \beta_{5}(latino_{ij}) + \beta_{6}(Black_{ij}) + \beta_{7}(medianhouseholdincome_{ij}) +\\
 \beta_{8}(65plus_{ij}) + \beta_{9}(poorfairhealth_{ij}) + \mu_{0j} + \epsilon_{0ij}
-\end{aligned}
+\end{aligned}`
 $$
 
 $$
-\begin{aligned}
+`\begin{aligned}
 Level 1: [\epsilon_{0ij}] \sim N(0,\sigma^2_{e0})
-\end{aligned}
+\end{aligned}`
 $$
 
 $$ 
-\begin{aligned}
+`\begin{aligned}
 Level 2: [\mu_{0j}] \sim N(0, \sigma^2_{u0})
-\end{aligned}
+\end{aligned}`
 $$
 
 ---
@@ -256,22 +170,22 @@ $$
 - H4: The association between access to recreational resources and increased leisure-time physical activity will significantly differ between states while adjusting for other county-level correlates.
 
 $$
-\begin{aligned}
+`\begin{aligned}
 LTPA_{ij} = \beta_0 + \beta_{1}(access_{ij}) + \beta_{2}(rural_{ij}) +\\
 \beta_{3}(crime_{ij}) + \beta_{4}(socialassociation_{ij}) +\\
 \beta_{5}(latino_{ij}) + \beta_{6}(Black_{ij}) + \beta_{7}(medianhouseholdincome_{ij}) +\\
 \beta_{8}(65plus_{ij}) + \beta_{9}(poorfairhealth_{ij}) + \mu_{0j} + \mu_{1j}(access_{ij}) + \epsilon_{0ij}
-\end{aligned}
+\end{aligned}`
 $$
 
 $$ 
-\begin{aligned}
+`\begin{aligned}
 Level 1: [\epsilon_{0ij}] \sim N(0,\sigma^2_{e0})
-\end{aligned}
+\end{aligned}`
 $$
 
 $$ 
-\begin{aligned}
+`\begin{aligned}
 Level 2: \left[\begin{array}{cc} 
 \mu_{0j}\\
 \mu_{1j}
@@ -280,11 +194,11 @@ Level 2: \left[\begin{array}{cc}
 \left(\begin{array}{cc}
 0,
 \left[\begin{array}{cc}
-\sigma^2_{\mu0} &  \\ 
-\sigma_{\mu0\mu1} & \sigma^2_{\mu1}
+\sigma^2_{\mu0} &amp;  \\ 
+\sigma_{\mu0\mu1} &amp; \sigma^2_{\mu1}
 \end{array}\right]
 \end{array}\right) 
-\end{aligned}
+\end{aligned}`
 $$
 
 ---
@@ -295,22 +209,22 @@ $$
 
 
 $$
-\begin{aligned}
+`\begin{aligned}
 Access_{ij} = \beta_0 + \beta_{1}(rural_{ij}) +
 \beta_{2}(latino_{ij}) + \beta_{3}(Black_{ij}) +\\ \beta_{4}(medianhouseholdincome_{ij}) + \mu_{0j} + \epsilon_{0ij}
-\end{aligned}
+\end{aligned}`
 $$
 
 $$ 
-\begin{aligned}
+`\begin{aligned}
 Level 1: [\epsilon_{0ij}] \sim N(0,\sigma^2_{e0})
-\end{aligned}
+\end{aligned}`
 $$
 
 $$
-\begin{aligned}
+`\begin{aligned}
 Level 2: [\mu_{0j}] \sim N(0, \sigma^2_{u0})
-\end{aligned}
+\end{aligned}`
 $$
 
 ---
@@ -325,8 +239,8 @@ class: center, middle
 # Participants
 
 - Unit of measurment for this study are all counties in the United States
-  + 2016: N = `r counties_for_2016`
-  + 2020: N = `r counties_for_2020`
+  + 2016: N = 3141, 1
+  + 2020: N = 3142, 1
   
 - Data was gathered through the [County Health Rankings](https://www.countyhealthrankings.org/)
   + Provides yearly estimates of various health behaviors, outcomes, and other correlates of health at the county level
@@ -336,56 +250,7 @@ class: center, middle
 
 ---
 
-```{r, echo = FALSE, eval = TRUE}
-
-# county_mice %>% 
-#   group_by(state_fips_code, county_fips_code) %>% 
-#   summarize(n = n()) %>% 
-#   count()
-
-us <- map_data(map = 'county')
-
-us <- map_data(map = 'county')
-
-us <- us %>% 
-  janitor::clean_names() %>% 
-  rename(state = region,
-         no_name_county = subregion) 
-
-us$state <- str_replace_all(us$state, pattern = " ", replacement = "_")
-us$no_name_county <- str_replace_all(us$no_name_county, pattern = " ", replacement = "_")
-
-us <- us %>% 
-  mutate(state = recode(state, 'alabama' = 'AL','alaska' = 'AK','arizona' = 'AZ','arkansas' = 'AR',
-            'california' = 'CA','colorado' = 'CO','connecticut' = 'CT',
-            'delaware' = 'DE',
-            'florida' = 'FL',
-            'georgia' = 'GA',
-            'hawaii' = 'HI',
-            'idaho' = 'ID','illinois' = 'IL','indiana' = 'IN','iowa' = 'IA',
-            'kansas' = 'KS','kentucky' = 'KY',
-            'louisiana' = 'LA',
-            'maine' = 'MA','maryland' = 'MD','massachusetts' = 'MA','michigan' = 'MI','minnesota' = 'MN','mississippi' = 'MS','missouri' = 'MO','montana' = 'MT',
-            'nebraska' = 'NE','nevada' = 'NV','new_hampshire' = 'NH','new_jersey' = 'NJ','new_mexico' = 'NM','new_york' = 'NY','north_carolina' = 'NC','north_dakota' = 'ND',
-            'ohio' = 'OH','oklahoma' = 'OK','oregon' = 'OR',
-            'pennsylvania' = 'PA',
-            'rhode_island' = 'RI',
-            'south_carolina' = 'SC','south_dakota' = 'SD',
-            'tennessee' = 'TN','texas' = 'TX',
-            'utah' = 'UT',
-            'vermont' = 'VT','virginia' = 'VA',
-            'washington' = 'WA','west_virginia' = 'WV','wisconsin' = 'WI','wyoming' = 'WY'))
-
-us %>% 
-  ggplot(aes(x = long, y = lat, group = group)) +
-  geom_polygon(fill = 'black', aes(color = state), size = .5) +
-  coord_fixed(1.2) +
-  viridis::scale_color_viridis(discrete = TRUE, option = 5) +
-  theme_void() +
-  theme(legend.position = 'none')
-
-
-```
+![](dissertation_proposal_updated_files/figure-html/unnamed-chunk-2-1.png)&lt;!-- --&gt;
 
 
 ---
@@ -410,8 +275,8 @@ class: center, middle
 - Number of violent crimes reported per 100,000
 - Uniform Crime Reporting - FBI
 - Rates measure the number of events in a given time period
-  + 2010 & 2012 data for 2016 estimates
-  + 2014 & 2016 data for 2020 estimates
+  + 2010 &amp; 2012 data for 2016 estimates
+  + 2014 &amp; 2016 data for 2020 estimates
 - Crimes counted in the county where the crime occurred
 
 ---
@@ -501,12 +366,36 @@ class: center, middle
 
 # Missing data
 
-```{r}
+
+```r
 head(inspect_na(mice16), 5)
 ```
 
-```{r}
+```
+## # A tibble: 5 x 3
+##   col_name                     cnt  pcnt
+##   &lt;chr&gt;                      &lt;int&gt; &lt;dbl&gt;
+## 1 violent_crime                167  5.32
+## 2 injury_deaths                117  3.72
+## 3 preventable_hospital_stays    83  2.64
+## 4 access_pa_percent             74  2.36
+## 5 drinking_water_violations     60  1.91
+```
+
+
+```r
 head(inspect_na(mice20), 5)
+```
+
+```
+## # A tibble: 5 x 3
+##   col_name                           cnt  pcnt
+##   &lt;chr&gt;                            &lt;int&gt; &lt;dbl&gt;
+## 1 violent_crime                      191  6.08
+## 2 injury_deaths                      100  3.18
+## 3 preventable_hospital_stays          43  1.37
+## 4 drinking_water_violations           43  1.37
+## 5 air_pollution_particulate_matter    34  1.08
 ```
 
 ---
@@ -561,7 +450,7 @@ head(inspect_na(mice20), 5)
 ---
 
 
-# Strengths & Limitations
+# Strengths &amp; Limitations
 
 ### Strengths
 
@@ -573,3 +462,126 @@ head(inspect_na(mice20), 5)
 - Inability to examine the data longitudinally
 - The geographic level may be too large to see meaningful differences
 - Limitations in how the measures are assessing each construct
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>

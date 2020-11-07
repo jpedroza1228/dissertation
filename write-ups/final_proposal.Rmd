@@ -135,6 +135,43 @@ drop <- county_mice %>%
 
 ```
 
+```{r}
+county_mice %>% 
+  filter(year == 2016) %>% 
+  inspect_na() %>% 
+  show_plot()
+
+# 5.3% violent crime
+
+county_mice %>% 
+  filter(year == 2017) %>% 
+  inspect_na() %>% 
+  show_plot()
+
+# 5.4% violent crime
+
+county_mice %>% 
+  filter(year == 2018) %>% 
+  inspect_na() %>% 
+  show_plot()
+
+# 5.6% violent crime
+
+county_mice %>% 
+  filter(year == 2019) %>% 
+  inspect_na() %>% 
+  show_plot()
+
+# 6.1% violent crime
+
+county_mice %>% 
+  filter(year == 2020) %>% 
+  inspect_na() %>% 
+  show_plot()
+
+# 6.1% violent crime
+```
+
 
 ```{r preliminary visualizations}
 states <- drop %>% 
