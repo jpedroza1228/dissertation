@@ -17,7 +17,7 @@ counties <- function(years){
 
 # counties(19)
 
-county <- map_df(18:20, ~counties(.x)) %>% 
+county <- map_df(16:20, ~counties(.x)) %>% 
   janitor::clean_names() %>% 
   filter(state_fips_code != 'statecode')
 
@@ -26,26 +26,16 @@ county_sub <- county %>%
          year = release_year,
          county_name = name) %>% 
   mutate(year = as.numeric(year)) %>% 
-  dplyr::select(1:7,
-                124:128,
-                244:248,
-                260:264,
-                280:284,
-                315:319,
-                330:334,
-                476:480,
-                627:631,
-                1073:1077)
+  dplyr::select(1:6,
+                48,
+                53,
+                151,
+                272,
+                297,
+                352)
 
 county16 <- county_sub %>% 
   filter(year == 2016) %>% 
-  dplyr::select(1:6,
-                8,
-                13,
-                18,
-                23,
-                33,
-                43) %>% 
   mutate(county_crime = as.numeric(violent_crime_raw_value),
          inactivity = as.numeric(physical_inactivity_raw_value),
          median_house_income = as.numeric(median_household_income_raw_value),
@@ -62,13 +52,6 @@ county16$county_fips_code <- str_remove(county16$county_fips_code, "^0+")
 
 county18 <- county_sub %>% 
   filter(year == 2018) %>%
-  dplyr::select(1:6,
-                8,
-                13,
-                18,
-                23,
-                33,
-                43) %>% 
   mutate(county_crime = as.numeric(violent_crime_raw_value),
          inactivity = as.numeric(physical_inactivity_raw_value),
          median_house_income = as.numeric(median_household_income_raw_value),
@@ -85,13 +68,6 @@ county18$county_fips_code <- str_remove(county18$county_fips_code, "^0+")
 
 county20 <- county_sub %>% 
   filter(year == 2020) %>%
-  dplyr::select(1:6,
-                8,
-                13,
-                18,
-                23,
-                33,
-                43) %>% 
   mutate(county_crime = as.numeric(violent_crime_raw_value),
          inactivity = as.numeric(physical_inactivity_raw_value),
          median_house_income = as.numeric(median_household_income_raw_value),
@@ -282,8 +258,7 @@ acs_year <- acs_year %>%
                         'utah' = 'UT',
                         'vermont' = 'VT','virginia' = 'VA',
                         'washington' = 'WA','west_virginia' = 'WV','wisconsin' = 'WI','wyoming' = 'WY'),
-         year = 2016
-         )
+         year = 2016)
 
 
 # https://www.fbi.gov/services/cjis/ucr
