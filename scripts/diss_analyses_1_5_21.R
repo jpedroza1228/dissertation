@@ -11,13 +11,13 @@ getwd()
 # data loading
 counties <- function(years){
   
-  read_csv(glue::glue('C:/Users/cpppe/Desktop/github_projects/dissertation/final_data/analytic_data20{years}.csv'))
+  read_csv(glue::glue('C:/Users/cpppe/Desktop/github_projects/dissertation/census_data/analytic_data20{years}.csv'))
   
 }
 
 # counties(19)
 
-county <- map_df(10:20, ~counties(.x)) %>% 
+county <- map_df(18:20, ~counties(.x)) %>% 
   janitor::clean_names() %>% 
   filter(state_fips_code != 'statecode')
 
@@ -104,9 +104,9 @@ county20 <- county_sub %>%
 county20$state_fips_code <- str_remove(county20$state_fips_code, "^0+")
 county20$county_fips_code <- str_remove(county20$county_fips_code, "^0+")
 
-write.csv(county16, 'county16.csv')
-write.csv(county18, 'county18.csv')
-write.csv(county20, 'county20.csv')
+# write.csv(county16, 'county16.csv')
+# write.csv(county18, 'county18.csv')
+# write.csv(county20, 'county20.csv')
 
 # https://www.census.gov/programs-surveys/cbp/data/datasets.html
 
@@ -177,8 +177,8 @@ cbp18$state_fips_code <- str_remove(cbp18$state_fips_code, "^0+")
 cbp18$county_fips_code <- str_remove(cbp18$county_fips_code, "^0+")
 
 
-write.csv(cbp16, 'cbp16.csv')
-write.csv(cbp18, 'cbp18.csv')
+# write.csv(cbp16, 'cbp16.csv')
+# write.csv(cbp18, 'cbp18.csv')
 
 census_key <- 'KEY' 
 
@@ -186,7 +186,6 @@ census_api_key(census_key)
 
 # variable names need to be changed
 
-variables <- load_variables(2010, 'sf1')
 variables_acs <- load_variables(2016, 'acs5')
   # filter(stringr::str_detect(label, 'Median household income'))
 
@@ -288,6 +287,7 @@ acs_year <- acs_year %>%
 
 
 # https://www.fbi.gov/services/cjis/ucr
+# https://crime-data-explorer.app.cloud.gov/
 
 crime <- read_csv('C:/Users/cpppe/Desktop/github_projects/dissertation/census_data/estimated_crimes_1979_2019.csv') %>% 
   janitor::clean_names() %>% 
@@ -309,8 +309,8 @@ crime18 <- crime %>%
                 robbery:motor_vehicle_theft) %>% 
   filter(state != 'NA')
 
-write.csv(crime16, 'crime16.csv')
-write.csv(crime18, 'crime18.csv')
+# write.csv(crime16, 'crime16.csv')
+# write.csv(crime18, 'crime18.csv')
 
 # FINAL DATA
 
