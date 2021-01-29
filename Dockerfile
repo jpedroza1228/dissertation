@@ -1,10 +1,8 @@
-FROM rocker/tidyverse
+FROM rocker/tidyverse:latest
 MAINTAINER Jonathan Pedroza (cpppedroza@gmail.com)
 
 ## Install packages from CRAN
 RUN install2.r --error \
-    -r 'http://cran.rstudio.com' \
-    tidyverse \
     sf \
     tidycensus \
     leaflet \
@@ -13,5 +11,4 @@ RUN install2.r --error \
     rgdal \
     rgeos \
     tictoc \
-    ## clean up
-    && rm -rf /tmp/downloaded_packages/ /tmp/*.rds \
+    
