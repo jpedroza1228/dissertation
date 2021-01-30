@@ -3,4 +3,10 @@ MAINTAINER Jonathan Pedroza (cpppedroza@gmail.com)
 
 # Install secret
 RUN install2.r --error \
-        secret 
+        sf \
+        tidycensus \
+        leaflet \
+        spdep \
+        spatialreg \
+        rgdal \
+        rgeos \
