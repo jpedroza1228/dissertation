@@ -10,13 +10,10 @@ RUN apt-get update && apt-get install -y \
 
 # Install secret
 RUN install2.r --error \
-        -r 'http://cran.rstudio.com' \
         sf \
         tidycensus \
         leaflet \
         spdep \
         spatialreg \
         rgdal \
-        rgeos \
-        && rm -rf /tmp/downloaded_packages/ /tmp/*.rds
-        
+        rgeos \      
