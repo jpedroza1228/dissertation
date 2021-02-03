@@ -1,8 +1,16 @@
 FROM rocker/tidyverse
 MAINTAINER Jonathan Pedroza (cpppedroza@gmail.com)
 
+RUN apt-get update && apt-get install -y \
+    libssl-dev \
+    ## clean up
+    && apt-get clean \ 
+    && rm -rf /var/lib/apt/lists/ \ 
+    && rm -rf /tmp/downloaded_packages/ /tmp/*.rds
+
 # Install secret
 RUN install2.r --error \
+        -r 'http://cran.rstudio.com' \
         sf \
         tidycensus \
         leaflet \
@@ -10,3 +18,5 @@ RUN install2.r --error \
         spatialreg \
         rgdal \
         rgeos \
+        && rm -rf /tmp/downloaded_packages/ /tmp/*.rds
+        
