@@ -1,6 +1,10 @@
 library(tidyverse)
 
-imputed$crime_factor <- cut(imputed$county_crime_2020, 3)
+imputed$income_factor <- cut(imputed$med_inc_2016_thousand, 3)
+
+# https://rpubs.com/quarcs-lab/tutorial-spatial-regression
+
+# Create neighbors and then try running that as a three-way interaction between access, income, neighbors on LTPA
 
 
 # lagged interaction will look like this but the facet will be of the neighbors/lagged neighbors
