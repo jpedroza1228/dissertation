@@ -1,0 +1,172 @@
+---
+title: "rds_analyses_centered"
+author: "JP"
+date: "2/20/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(sf)
+library(psych)
+library(tidycensus)
+library(spdep)
+library(spatialreg)
+library(rgdal)
+library(rgeos)
+
+options(scipen = 999)
+
+set.seed(12152020)
+```
+
+```{r}
+imputed <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/cen_imputed.rds')
+psych::describe(imputed, na.rm = TRUE)[c('mean', 'sd', 'min', 'max')]
+
+acs_poly <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/acs_polyc.rds')
+
+poly_data <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/poly_datac.rds')
+
+poly_nb_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/poly_nb_queenc.rds')
+
+poly_listw_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/poly_listw_queenc.rds')
+
+ols_model_moran_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/ols_model_moran_queenc.rds')
+ols_model_moran_queen
+
+lm_spa_tests_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/lm_spa_tests_queenc.rds')
+lm_spa_tests_queen 
+#highest statistic is the RLMlag compared to the RLMlag, so use a error model
+```
+
+```{r moran tests}
+
+ltpa_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/moran_ltpa_queenc.rds')
+ltpa_queen
+
+rec_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/moran_rec_queenc.rds')
+rec_queen
+
+crime_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/crime_queenc.rds')
+crime_queen
+
+income_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/income_queenc.rds')
+income_queen
+
+rural_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/rural_queenc.rds')
+rural_queen
+
+white_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/white_queenc.rds')
+white_queen
+
+black_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/black_queenc.rds')
+black_queen
+
+latino_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/latino_queenc.rds')
+latino_queen
+```
+
+
+```{r main queen analyses}
+
+ols_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/ols_modelc.rds')
+summary(ols_queen)
+AIC(ols_queen)
+
+slx_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/model_slx_queenc.rds')
+summary(slx_queen)
+summary(impacts(slx_queen, listw = poly_listw_queen), zstats = TRUE)
+AIC(slx_queen)
+
+sar_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/model_sar_queenc.rds')
+summary(sar_queen, zstats = TRUE, Nagelkerke = TRUE)
+sar_model_find <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/sar_model_find.rds')
+sar_model_find
+AIC(sar_queen)
+
+LR.sarlm(sar_queen, slx_queen)
+LR.sarlm(sar_queen, ols_queen)
+
+```
+
+```{r int diagnostics}
+
+int_moran_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_moran_queenc.rds')
+int_moran_queen
+
+int_spa_tests_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_spa_tests_queenc.rds')
+int_spa_tests_queen 
+#highest statistic is the RLMlag compared to the RLMlag, so use a error model
+```
+
+```{r interaction analyses}
+int_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_modelc.rds')
+summary(int_queen)
+AIC(int_queen)
+
+int_slx_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_slx_queenc.rds')
+summary(int_slx_queen)
+summary(impacts(int_slx_queen, listw = poly_listw_queen), zstats = TRUE)
+AIC(int_slx_queen)
+
+int_sar_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_sar_queenc.rds')
+summary(int_sar_queen, zstats = TRUE, Nagelkerke = TRUE)
+int_model_find <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_model_find.rds')
+int_model_find
+AIC(int_sar_queen)
+
+LR.sarlm(int_sar_queen, int_slx_queen)
+LR.sarlm(int_sar_queen, int_queen)
+
+```
+
+```{r}
+int_income_moran_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_income_moran_queenc.rds')
+int_income_moran_queen
+
+int_income_spa_tests_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_income_spa_tests_queenc.rds')
+int_income_spa_tests_queen
+```
+
+
+```{r}
+int_income_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_income_modelc.rds')
+summary(int_income_queen)
+AIC(int_income_queen)
+
+int_income_slx_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_income_slx_queenc.rds')
+summary(int_income_slx_queen)
+summary(impacts(int_income_slx_queen, listw = poly_listw_queen), zstats = TRUE)
+
+int_income_sar_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_income_sar_queenc.rds')
+summary(int_income_sar_queen, zstats = TRUE, Nagelkerke = TRUE)
+int_income_model_find <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_income_model_find.rds')
+int_income_model_find
+AIC(int_income_sar_queen)
+
+LR.sarlm(int_income_sar_queen, int_income_slx_queen)
+LR.sarlm(int_income_sar_queen, int_income_queen)
+```
+
+```{r}
+LR.sarlm(int_sar_queen, sar_queen)
+LR.sarlm(int_income_sar_queen, sar_queen)
+```
+
+
+
+```{r}
+imputed %>% 
+  ggplot(aes(rec_resource_2018c, ltpa_2020c)) +
+  geom_point(color = 'gray70', alpha = .5) +
+  geom_smooth(method = 'lm', se = FALSE, aes(color = cut(med_inc_2016_thousandc, 3))) +
+  # facet_wrap(~county_fips_code) +
+  theme_minimal()
+```
+

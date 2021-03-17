@@ -1,0 +1,367 @@
+---
+title: "Analytic Plan & Findings"
+author: "JP"
+date: "2/25/2021"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, eval = TRUE, include = FALSE}
+library(tidyverse)
+library(sf)
+library(psych)
+library(tidycensus)
+library(spdep)
+library(spatialreg)
+library(rgdal)
+library(rgeos)
+
+options(scipen = 999)
+
+set.seed(12152020)
+
+linearity <- function(data, x, y, se = c(TRUE, FALSE), size){
+  library(dplyr)
+  library(ggplot2)
+  
+  line_plot <- {{data}} %>% 
+    ggplot(aes({{x}}, {{y}})) +
+      geom_point(color = 'gray70', alpha = .5) + 
+      geom_smooth(se = {{se}}, size = {{size}}) +
+      geom_smooth(method = 'lm', color = 'black', se = {{se}}, size = {{size}}) +
+    labs(title = 'Scatterplot to Assess Linearity') +
+    theme_minimal()
+  
+  return(line_plot)
+}
+
+residual_view <- function(data, x, y, se = c(TRUE, FALSE), size){
+
+  ivs <- paste(x, collapse = " + ")
+  my_formula <- as.formula(paste(y, '~', ivs))
+  model <- lm(my_formula, data = data)
+
+  library(ggplot2)
+
+  fort <- fortify(model)
+
+  res_plot <- ggplot(fort, aes(.fitted, .resid)) +
+    geom_point(color = 'gray70', alpha = .5) +
+    geom_smooth(method = 'lm', color = 'black', se = {{se}}, size = {{size}}) +
+    labs(title = 'Plot of Residuals') +
+    theme_minimal()
+
+  return(res_plot)
+}
+
+normality_view <- function(data, x, model_x, y, alpha, bins, se = c(TRUE, FALSE)){
+  library(dplyr)
+  library(ggplot2)
+
+  ivs <- paste(model_x, collapse = " + ")
+  my_formula <- as.formula(paste(y, '~', ivs))
+  model <- lm(my_formula, data = data)
+
+  univariate_histogram <- {{data}} %>%
+    ggplot(aes({{x}})) +
+    geom_histogram(color = 'white', alpha = {{alpha}}, bins = {{bins}}) +
+    labs(title = 'Histogram to Assess Normality') + 
+    theme_minimal()
+
+  qq_plot_model <- ggplot(model, aes(sample = .stdresid)) +
+    geom_qq(color = 'gray70', size = 4) +
+    stat_qq_line() + 
+    theme_minimal()
+
+  gridExtra::grid.arrange(univariate_histogram, qq_plot_model, nrow = 2)
+}
+
+```
+
+## Correlations between variables in models
+
+```{r correlations between key variables}
+imputed <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/cen_imputed.rds')
+
+imputed %>% 
+  rename(activity = ltpa_2020c,
+         access = rec_resource_2018c,
+         rural = rural_2020c,
+         white = white_per_2016c,
+         black = black_per_2016c,
+         latino = latino_per_2016c,
+         crime = county_crime_2020c,
+         income = med_inc_2016_thousandc) %>% 
+  dplyr::select(access:income) %>% 
+  cor()
+
+imputed %>% 
+  rename(activity = ltpa_2020c,
+         access = rec_resource_2018c,
+         rural = rural_2020c,
+         white = white_per_2016c,
+         black = black_per_2016c,
+         latino = latino_per_2016c,
+         crime = county_crime_2020c,
+         income = med_inc_2016_thousandc) %>% 
+  dplyr::select(access:income) %>%
+  inspectdf::inspect_cor()
+```
+Notes. 
+
+* All the variables were centered to reduce potential multicollinearity with the inclusion of the interactions for the 2nd and 3rd models.
+
+* The percentage of White residents within each county was removed from the models due to its high correlation with Black/African American residents within each county (*r* = -.859, *p* < .001).
+
+## Regression Assumptions
+
+```{r}
+
+imputed %>% 
+  rename(activity = ltpa_2020c,
+         access = rec_resource_2018c,
+         rural = rural_2020c,
+         white = white_per_2016c,
+         black = black_per_2016c,
+         latino = latino_per_2016c,
+         crime = county_crime_2020c,
+         income = med_inc_2016_thousandc) %>% 
+  dplyr::select(access:income,
+                -white) %>% 
+  psych::describe(., na.rm = TRUE)
+
+linearity(imputed, rec_resource_2018c, ltpa_2020c, se = FALSE, size = 1)
+linearity(imputed, rural_2020c, ltpa_2020c, se = FALSE, size = 1)
+linearity(imputed, black_per_2016c, ltpa_2020c, se = FALSE, size = 1)
+linearity(imputed, latino_per_2016c, ltpa_2020c, se = FALSE, size = 1)
+linearity(imputed, county_crime_2020c, ltpa_2020c, se = FALSE, size = 1)
+linearity(imputed, med_inc_2016_thousandc, ltpa_2020c, se = FALSE, size = 1)
+
+predictors <- c('rec_resource_2018c', 'rural_2020c', 'black_per_2016c', 'latino_per_2016c', 'county_crime_2020c', 'med_inc_2016_thousandc')
+residual_view(data = imputed, x = predictors, y = 'ltpa_2020c', se = FALSE, size = 1)
+
+normality_view(data = imputed, x = rec_resource_2018c, model_x = predictors, y = 'ltpa_2020c', 
+               alpha = .5, bins = 10, se = FALSE) 
+
+num_only <- imputed %>% 
+  dplyr::select(rec_resource_2018c:med_inc_2016_thousandc,
+                -white_per_2016c)
+
+map(num_only, ~ggplot(num_only, aes(.x)) +
+      geom_histogram(alpha = .5, bins = 10) + 
+      theme_minimal())
+
+```
+
+Notes. 
+
+* The residual plot may not random. This could indicate spatial autocorrelation.
+
+* There doesn't seem to be any indication of quadratic relationships
+
+* Q-Q plot appears to be good.
+
+* Histograms and descriptive statistics suggests non-normal distributions of rurality, Black/African resident population, Latino resident population, violent crime, and median household income.
+
+**For Raoul** Should there be transformations to the variables with non-normal distributions (rurality, Black/African resident population, Latino resident population, violent crime, and median household income)? Is this a problem if this is how these variables are actually distributed in the United States? 
+
+## Models Tested
+$$
+PhysicalActivity = Access + Crime + HouseholdIncome + Rurality + Black + Latino
+$$
+
+$$
+PhysicalActivity = Access(x)Crime + Access + Crime + HouseholdIncome + Rurality + Black + Latino
+$$
+
+$$
+PhysicalActivity = Access(x)HouseholdIncome + Access + Crime + HouseholdIncome + Rurality + Black + Latino
+$$
+## Creating Neighbors
+```{r creating neighbors}
+poly_nb_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/poly_nb_queenc.rds')
+poly_nb_queen
+
+poly_listw_queenc <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/poly_listw_queenc.rds')
+
+# poly_nb_queenc <- poly2nb(acs_polyc, row.names = acs_polyc$rowid, queen = TRUE)
+
+# poly_listw_queenc <- nb2listw(poly_nb_queenc, style = "W", zero.policy = TRUE)
+```
+
+Notes. 
+
+* Queen contiguity weights were used. I used these weights because I read from several sources that these are more accurate for examining irregular polygons, such as counties. 
+
+* Under the section function, it calls for a weights list for neighbors. I chose W since it made the most sense to me about standardizing the rows to equal 1. Below are the options.
+
+From Starting from a binary neighbours list, in which regions are either listed as neighbours or are absent (thus not in the set of neighbours for some definition), the function adds a weights list with values given by the coding scheme style chosen. B is the basic binary coding, W is row standardised (sums over all links to n), C is globally standardised (sums over all links to n), U is equal to C divided by the number of neighbours (sums over all links to unity), while S is the variance-stabilizing coding scheme proposed by Tiefelsdorf et al. 1999, p. 167-168 (sums over all links to n).
+
+**For Raoul** For the weights, is there any weight list that is better than one another? Are queen contiguity weights appropriate or should I use rook contiguity weights? 
+
+## Moran Values for Each Variable
+
+```{r morans i for each variable included}
+ltpa_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/moran_ltpa_queenc.rds')
+ltpa_queen
+
+rec_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/moran_rec_queenc.rds')
+rec_queen
+
+crime_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/crime_queenc.rds')
+crime_queen
+
+income_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/income_queenc.rds')
+income_queen
+
+rural_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/rural_queenc.rds')
+rural_queen
+
+black_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/black_queenc.rds')
+black_queen
+
+latino_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/latino_queenc.rds')
+latino_queen
+
+```
+
+Notes. 
+
+* These are the Moran's I values for each variable included in the models. 
+
+## 
+```{r main effects model}
+ols_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/ols_modelc.rds')
+summary(ols_queen)
+AIC(ols_queen)
+```
+
+Notes. 
+
+* This model is to be able to test the residuals for the moran's test and the LM test.
+
+```{r residuals of the main effects model}
+ols_model_moran_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/ols_model_moran_queenc.rds')
+ols_model_moran_queen
+```
+
+**For Raoul** I'm curious on how to report this Moran's I value compared to the Moran's I for each variable. This tells me that the residuals of the model for the OLS model has evidence of spatial dependence while the other values represent evidence that each variable is spatially dependent. Is that how these values would be interpreted?
+
+```{r LM tests for main effects model}
+lm_spa_tests_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/lm_spa_tests_queenc.rds')
+lm_spa_tests_queen 
+```
+
+**For Raoul** Since the LM tests indicate that a spatial lag model has a higher value, is this enough evidence of running this model over the spatial error model? Also the SARMA model has a higher value than the others but the resources I used stated that this is rarely the most appropriate model to run. I have also not found anything on how to run this particular model in R. 
+The model tested was a spatial lag model
+$$
+y = \rho Wy + X\beta + \epsilon
+$$
+
+```{r SAR model}
+sar_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/model_sar_queenc.rds')
+summary(sar_queen, zstats = TRUE, Nagelkerke = TRUE)
+AIC(sar_queen)
+sar_model_find <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/sar_model_find.rds')
+sar_model_find
+```
+
+Notes. 
+
+**For Raoul** I really would like help in how to interpret the findings. So just so I'm clear, the first summary cannot be interpreted due to spillover between the estimates on physical activity. So it relies on the impact measures of direct, indirect, and total effects (the second file loaded [e.g., sar_model_find]). 
+
+My understanding of the interpretations are:
+The estimate (*b* = 0.030) of the direct effect between access to recreational resources and physical activity would be that for a one unit increase in access in any given county, there would be a 0.028 increase in physical activity in that county.
+
+The indirect effect would be for a one unit increase in access in neighboring counties, there would be a 0.024 increase in physical activity in that county.
+
+The total effect would be the addition of these two effects. So for a one unit increase in access in a county and it's neighboring counties, there would be a 0.054 increase in physical activity in the neighboring counties.
+
+Any feedback on this would be greatly appreciated. 
+
+## Crime Interaction Model
+
+**For Raoul** For the following two models, I ran everything exactly the same as the previous model. I'm not sure how to interpret the interactions. Specifically, I'm not sure how to interpret the significant indirect, direct, and total effects of the access to recreational resources and median household income interaction. Lastly, the spatial lag model apparently does not provide p values for these effects and they are simulated by running the model how ever many times requested in the code. I was able to run it three times on a remote server with 64gb of memory and it took a while to run with the number of observations in the data. I'm curious to know if three simulations is enough since it crashed trying to run anymore than that. 
+
+I also included my analytic plan for my study. 
+
+```{r crime interaction model}
+int_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_modelc.rds')
+summary(int_queen)
+AIC(int_queen)
+```
+
+
+```{r residuals of crime interaction model}
+int_moran_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_moran_queenc.rds')
+int_moran_queen
+```
+
+
+```{r LM tests for crime interaction model}
+int_spa_tests_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_spa_tests_queenc.rds')
+int_spa_tests_queen 
+```
+
+
+```{r sar interaction model}
+int_sar_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_sar_queenc.rds')
+summary(int_sar_queen, zstats = TRUE, Nagelkerke = TRUE)
+int_model_find <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_model_find.rds')
+int_model_find
+AIC(int_sar_queen)
+```
+
+## Income Interaction Model
+
+```{r income interaction model}
+int_income_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_income_modelc.rds')
+summary(int_income_queen)
+AIC(int_income_queen)
+```
+
+```{r residuals of income interaction model}
+int_income_moran_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_income_moran_queenc.rds')
+int_income_moran_queen
+```
+
+```{r LM tests for income interaction model}
+int_income_spa_tests_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_income_spa_tests_queenc.rds')
+int_income_spa_tests_queen
+```
+
+
+```{r}
+int_income_sar_queen <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_income_sar_queenc.rds')
+summary(int_income_sar_queen, zstats = TRUE, Nagelkerke = TRUE)
+int_income_model_find <- read_rds('C:/Users/cpppe/Desktop/github_projects/dissertation/rds_files/centered_folder/int_income_model_find.rds')
+int_income_model_find
+AIC(int_income_sar_queen)
+```
+
+## Comparing model fit between the main effects model and the interaction models
+
+```{r comparing the SAR models}
+LR.sarlm(int_sar_queen, sar_queen)
+LR.sarlm(int_income_sar_queen, sar_queen)
+```
+
+## Analytic Plan
+
+Analytic Plan
+All analyses for the present study were conducted in R 4.0.3 (R Core Team, 2020), using the following packages: tidyverse (Wickham et al., 2019), psych (Revelle, 2020), inspectdf (Rushworth, 2020), sf (Bivand et al., 2018), spdep (Rogers et al., 2013), and tidycensus (Walker & Herman, 2020). With limited missing values in the dataset, missing data were addressed by imputing the median. Model assumptions for ordinary least squares (OLS) regressions were tested, including univariate normality, linearity, homoscedasticity, residuals of the models, and multicollinearity. Correlations of .7 or above were used as a threshold indicating multicollinearity. Variables with values over this threshold were removed from the analyses. Due to the spatial nature of the data, Moran’s I tests were conducted to examine spatial dependence in all the variables of interest. These tests examine if variable values are clustered together with nearby counties and show spatial dependence. Moran’s I values range from -1 to 1, with higher values indicating that spatial clusters are similar and a zero-value indicating a random pattern in spatial clusters. Since counties are irregular shapes in the United States, queen contiguity weights were used. These weights are more accurate when examining irregular polygons. All continuous variables were centered for moderation analyses. 
+
+Study Aim 1 Analytic Plan
+	An OLS model was tested to examine the association between recreational resources and LTPA while adjusting for violent crime, median household income, percentage of a given county that is rural, and estimates of Black/African American, and Latina/o populations in each county. The residuals were used to examine if the Moran’s test for the model suggested spatial dependence. Lagrange Multiplier (LM) diagnostic tests were conducted on this model to suggest whether to conduct a spatial error or spatial lag model. Based on the findings of the LM test, a spatial regression model was conducted that mirrored that of the OLS model while accounting for the spatial dependence in the OLS model. 
+	
+Study Aim 2 Analytic Plan
+	A second OLS model was tested to investigate violent crime rates as a potential moderator of the association between access to recreational resources and LTPA. The residuals of the moderation analysis were used to assess spatial dependence. LM tests were also conducted for the interaction model. The spatial regression model included the interaction between access to recreational resources and violent crime rates while adjusting for median household income, percentage of a given county that is rural, and percentages of Black/African American and Latina/o populations within a given county.
+	
+Exploratory Analyses
+A post-hoc OLS regression was conducted investigating median household income as a moderator of the association between access to recreational resources and LTPA. Spatial dependence and selection of the correct spatial regression were assessed by Moran’s I and LM tests. From the LM tests, a spatial lag model was conducted that included the interaction between access to recreational resources and median household income while adjusting for violent crime rates, percentage of a given county that is rural, and percentages of Black/African American and Latina/o populations within a given county.
+
