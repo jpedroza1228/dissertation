@@ -335,7 +335,7 @@ model_variablesc <- ltpa_2020c ~ rec_resource_2018c + county_crime_2020c +
 model_reg <- lm(ltpa_2020c ~ rec_resource_2018c + county_crime_2020c +
   med_inc_2016_thousandc + rural_2020c +
   black_per_2016c + latino_per_2016c, data = acs_polyc)
-summary(model_reg)
+# summary(model_reg)
 
 set.seed(12152020)
 poly_nb <- poly2nb(acs_polyc, row.names = acs_polyc$rowid, queen = TRUE)
@@ -346,32 +346,32 @@ summary(poly_listw, zero.policy = TRUE)
 lm.morantest(model_reg, poly_listw, zero.policy = TRUE, alternative = "two.sided")
 
 # lm.LMtests(model, poly_listw,test=c("LMerr", "LMlag", "RLMerr", "RLMlag"), zero.policy = TRUE)
-lm.LMtests(model_reg, poly_listw,test=c("LMerr", "LMlag", "RLMerr", "RLMlag"), zero.policy = TRUE)
+# lm.LMtests(model_reg, poly_listw,test=c("LMerr", "LMlag", "RLMerr", "RLMlag"), zero.policy = TRUE)
 
-sar_model <- lagsarlm(ltpa_2020c ~ rec_resource_2018c + county_crime_2020c +
-  med_inc_2016_thousandc + rural_2020c +
-  black_per_2016c + latino_per_2016c,
-  data = acs_polyc, listw = poly_listw, zero.policy = TRUE)
-summary(sar_model, Nagelkerke = TRUE, zstats = TRUE)
+# sar_model <- lagsarlm(ltpa_2020c ~ rec_resource_2018c + county_crime_2020c +
+#   med_inc_2016_thousandc + rural_2020c +
+#   black_per_2016c + latino_per_2016c,
+#   data = acs_polyc, listw = poly_listw, zero.policy = TRUE)
+# summary(sar_model, Nagelkerke = TRUE, zstats = TRUE)
 
-set.seed(12152020)
-moran.mc(sar_model$residuals, listw = poly_listw, zero.policy = TRUE, nsim = 9999)
+# set.seed(12152020)
+# moran.mc(sar_model$residuals, listw = poly_listw, zero.policy = TRUE, nsim = 9999)
 
-upper_to_2tail(value = .9316)
+# upper_to_2tail(value = .9316)
 
-poly_datac$main_fit <- fitted(model_reg)
-poly_datac$model_sd_breaks <- scale(poly_datac$main_fit)[, 1]
-summary(poly_datac$model_sd_breaks)
+# poly_datac$main_fit <- fitted(model_reg)
+# poly_datac$model_sd_breaks <- scale(poly_datac$main_fit)[, 1]
+# summary(poly_datac$model_sd_breaks)
 
 library(tmap)
 
-tm_shape(poly_datac) +
-  tm_fill("model_sd_breaks", title = "Standard\nDeviations", style = "sd", palette = "RdYlBu") +
-  tm_borders(alpha = .3) +
-  tm_layout(legend.outside = TRUE,
-            legend.outside.position = c("right"),
-            legend.title.size = .8,
-            legend.text.size = .6)
+# tm_shape(poly_datac) +
+#   tm_fill("model_sd_breaks", title = "Standard\nDeviations", style = "sd", palette = "RdYlBu") +
+#   tm_borders(alpha = .3) +
+#   tm_layout(legend.outside = TRUE,
+#             legend.outside.position = c("right"),
+#             legend.title.size = .8,
+#             legend.text.size = .6)
 
 ```
 
@@ -533,7 +533,35 @@ south_sp <- as(south, 'Spatial')
 west_sp <- as(west, 'Spatial')
 midwest_sp <- as(midwest, 'Spatial')
 
+summary(northeast_sp, na.rm = TRUE)
+
 ```
+
+```{r}
+northeast %>% 
+  dplyr::select(ltpa_2020:latino_per_2016) %>% 
+  map(~summary(.x))
+
+sd(northeast$ltpa_2020)
+sd(northeast$rec_resource_2018)
+sd(northeast$county_crime_2020)
+sd(northeast$med_inc_2016_thousand)
+sd(northeast$rural_2020)
+sd(northeast$white_per_2016)
+sd(northeast$black_per_2016)
+sd(northeast$latino_per_2016)
+
+summary(northeast$ltpa_2020)[c("Min.", "Mean", "Max.")]
+summary(northeast$rec_resource_2018)[c("Min.", "Mean", "Max.")]
+summary(northeast$county_crime_2020)[c("Min.", "Mean", "Max.")]
+summary(northeast$med_inc_2016_thousand)[c("Min.", "Mean", "Max.")]
+summary(northeast$rural_2020)[c("Min.", "Mean", "Max.")]
+summary(northeast$white_per_2016)[c("Min.", "Mean", "Max.")]
+summary(northeast$black_per_2016)[c("Min.", "Mean", "Max.")]
+summary(northeast$latino_per_2016)[c("Min.", "Mean", "Max.")]
+
+```
+
 
 ```{r northeast extra stuff, eval = FALSE}
 ols_northeast <- lm(model_variablesc, data = northeast_sp)
