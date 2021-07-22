@@ -1,0 +1,1467 @@
+---
+title: "final_dissertation_analyses"
+author: "JP"
+date: "7/19/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading Packages and Dataframes
+
+```{r loading data}
+library(tidyverse)
+library(sf)
+library(psych)
+library(tidycensus)
+library(spdep)
+library(spatialreg)
+library(rgdal)
+library(rgeos)
+library(tmap)
+library(inspectdf)
+
+options(scipen = 999)
+
+set.seed(12152020)
+
+census_key <- "key"  
+
+census_api_key(census_key)
+
+county16 <- read_csv('https://raw.githubusercontent.com/jpedroza1228/dissertation/master/analytic_data/county_16.csv') %>% 
+  dplyr::select(-X1)
+county18 <- read_csv('https://raw.githubusercontent.com/jpedroza1228/dissertation/master/analytic_data/county_18.csv') %>% 
+  dplyr::select(-X1)
+county20 <- read_csv('https://raw.githubusercontent.com/jpedroza1228/dissertation/master/analytic_data/county_20.csv') %>% 
+  dplyr::select(-X1)
+
+crime16 <- read_csv('https://raw.githubusercontent.com/jpedroza1228/dissertation/master/analytic_data/crime16.csv') %>% 
+  dplyr::select(-X1)
+crime18 <- read_csv('https://raw.githubusercontent.com/jpedroza1228/dissertation/master/analytic_data/crime18.csv') %>% 
+  dplyr::select(-X1)
+
+variables_acs <- load_variables(2016, 'acs5')
+
+acs_var <- c('B02001_002', #estimate total, white alone
+             'B02001_003', #estimate total, black/african american alone
+             'B02001_005', #estimate total, asian alone
+             'B03003_003', #estimate total, hispanic or latino
+             'B19013_001', #median household income total
+             'B01003_001' #population count
+)
+
+acs_year <- get_acs(
+  geography = "county",
+  variables = acs_var,
+  year = 2016,
+  survey = "acs5",
+  geometry = TRUE,
+  shift_geo = TRUE,
+  output = 'wide'
+) %>% 
+  janitor::clean_names()
+
+acs_year <- separate(acs_year, col = name, into = c('county_name', 'state_name'), sep = ', ') %>% 
+  janitor::clean_names() %>% 
+  rename(white_est = b02001_002e,
+         black_est = b02001_003e,
+         asian_est = b02001_005e,
+         latino_est = b03003_003e,
+         median_household_income = b19013_001e,
+         pop_count_2016 = b01003_001e,
+         acs_geometry = geometry) %>% 
+  dplyr::select(1:4,
+                6, 8, 10, 12, 14, 16) 
+
+acs_year$state_name <- str_to_lower(acs_year$state_name)
+
+
+acs_year <- acs_year %>% 
+  mutate(state = recode(state_name, 'alabama' = 'AL','alaska' = 'AK','arizona' = 'AZ','arkansas' = 'AR',
+                        'california' = 'CA','colorado' = 'CO','connecticut' = 'CT',
+                        'delaware' = 'DE', 'district of columbia' = 'DC',
+                        'florida' = 'FL',
+                        'georgia' = 'GA',
+                        'hawaii' = 'HI',
+                        'idaho' = 'ID','illinois' = 'IL','indiana' = 'IN','iowa' = 'IA',
+                        'kansas' = 'KS','kentucky' = 'KY',
+                        'louisiana' = 'LA',
+                        'maine' = 'ME','maryland' = 'MD','massachusetts' = 'MA','michigan' = 'MI','minnesota' = 'MN','mississippi' = 'MS','missouri' = 'MO','montana' = 'MT',
+                        'nebraska' = 'NE','nevada' = 'NV','new hampshire' = 'NH','new jersey' = 'NJ','new mexico' = 'NM','new york' = 'NY','north carolina' = 'NC','north dakota' = 'ND',
+                        'ohio' = 'OH','oklahoma' = 'OK','oregon' = 'OR',
+                        'pennsylvania' = 'PA',
+                        'rhode island' = 'RI',
+                        'south carolina' = 'SC','south dakota' = 'SD',
+                        'tennessee' = 'TN','texas' = 'TX',
+                        'utah' = 'UT',
+                        'vermont' = 'VT','virginia' = 'VA',
+                        'washington' = 'WA','west virginia' = 'WV','wisconsin' = 'WI','wyoming' = 'WY'),
+         year = 2016)
+```
+
+```{r joining}
+need_acs16 <- left_join(county16, crime16, c("year", "state"))
+final16 <- left_join(need_acs16, acs_year, by = c('county_name', 'state', 'year'))
+
+wide16 <- final16 %>%
+  rowid_to_column() %>% 
+  pivot_wider(names_from = year,
+              values_from = c(8:13,
+                              15:23,
+                              26:30)) %>% 
+  dplyr::select(-rowid)
+
+need_acs18 <- left_join(county18, crime18, c("year", "state"))
+
+wide18 <- need_acs18 %>%
+  rowid_to_column() %>% 
+  pivot_wider(names_from = year,
+              values_from = c(8:13,
+                              15:23)) %>% 
+  dplyr::select(-rowid) 
+
+wide20 <- county20 %>% 
+  rowid_to_column() %>% 
+  pivot_wider(names_from = year,
+              values_from = c(8:13)) %>% 
+  dplyr::select(-rowid)
+
+wider <- left_join(wide16, wide18)
+
+wide_data <- left_join(wider, wide20)
+```
+
+```{r wrangling}
+wide_data <- wide_data %>% 
+  filter(str_detect(x5_digit_fips_code, '000$', negate = TRUE)) %>% 
+  mutate(phyact_2016 = (inactivity_2016*100),
+         ltpa_2016 = (100 - phyact_2016),
+         rural_2016 = rural_2016*100,
+         rec_resource_2016 = rec_resource_2016*100,
+         phyact_2018 = (inactivity_2018*100),
+         ltpa_2018 = (100 - phyact_2018),
+         rural_2018 = rural_2018*100,
+         rec_resource_2018 = rec_resource_2018*100,
+         phyact_2020 = (inactivity_2020*100),
+         ltpa_2020 = (100 - phyact_2020),
+         rural_2020 = rural_2020*100,
+         rec_resource_2020 = rec_resource_2020*100,
+         white_per_2016 = (white_est_2016/pop_count_2016)*100,
+         black_per_2016 = (black_est_2016/pop_count_2016)*100,
+         latino_per_2016 = (latino_est_2016/pop_count_2016)*100,
+         med_inc_2016_thousand = median_household_income_2016*.001,
+         state2 = state,
+         region = recode(state2, "AL" = "South",
+                         "AK" = "West",
+                         "AZ" = "West",
+                         "AR" = "South",
+                         "CA" = "West",
+                         "CO" = "West",
+                         "CT" = "Northeast",
+                         "DE" = "South",
+                         "DC" = "Northeast",
+                         "FL" = "South",
+                         "GA" = "South",
+                         "HI" = "West",
+                         "ID" = "West",
+                         "IL" = "Midwest",
+                         "IN" = "Midwest",
+                         "IA" = "Midwest",
+                         "KS" = "Midwest",
+                         "KY" = "South",
+                         "LA" = "South",
+                         "ME" = "Northeast",
+                         "MD" = "South",
+                         "MA" = "Northeast",
+                         "MI" = "Midwest",
+                         "MN" = "Midwest",
+                         "MS" = "South",
+                         "MO" = "Midwest",
+                         "MT" = "West",
+                         "NE" = "Midwest",
+                         "NV" = "West",
+                         "NH" = "Northeast",
+                         "NJ" = "Northeast",
+                         "NM" = "West",
+                         "NY" = "Northeast",
+                         "NC" = "South",
+                         "ND" = "Midwest",
+                         "OH" = "Midwest",
+                         "OK" = "South",
+                         "OR" = "West",
+                         "PA" = "Northeast",
+                         "RI" = "Northeast",
+                         "SC" = "South",
+                         "SD" = "Midwest",
+                         "TN" = "South",
+                         "TX" = "South",
+                         "UT" = "West",
+                         "VT" = "Northeast",
+                         "VA" = "South",
+                         "WA" = "West",
+                         "WV" = "South",
+                         "WI" = "Midwest",
+                         "WY" = "West")) %>% 
+  dplyr::select(state_fips_code:acs_geometry,
+                pop_count_2016, ltpa_2020, rec_resource_2018, county_crime_2020, med_inc_2016_thousand, 
+                rural_2020, white_per_2016, black_per_2016, latino_per_2016,
+                region) 
+
+wide_data$centroid <- st_centroid(wide_data$acs_geometry)
+
+cen_imputed <- wide_data %>% 
+  mutate(state_fips_code = as.factor(state_fips_code),
+         county_fips_code = as.factor(county_fips_code)) %>% 
+  mutate_if(is.numeric, ~ifelse(is.na(.), median(., na.rm = TRUE), .))
+
+cen_imputed <- cen_imputed %>% 
+  mutate(rec_resource_2018c = scale(rec_resource_2018, center = TRUE, scale = FALSE),
+         ltpa_2020c = scale(ltpa_2020, center = TRUE, scale = FALSE),
+         rural_2020c = scale(rural_2020, center = TRUE, scale = FALSE),
+         white_per_2016c = scale(white_per_2016, center = TRUE, scale = FALSE),
+         black_per_2016c = scale(black_per_2016, center = TRUE, scale = FALSE),
+         latino_per_2016c = scale(latino_per_2016, center = TRUE, scale = FALSE),
+         county_crime_2020c = scale(county_crime_2020, center = TRUE, scale = FALSE),
+         med_inc_2016_thousandc = scale(med_inc_2016_thousand, center = TRUE, scale = FALSE),
+         low_crime = county_crime_2020c + 186.50,
+         high_crime = county_crime_2020c - 186.50,
+         low_income = med_inc_2016_thousandc + 12.41,
+         high_income = med_inc_2016_thousandc - 12.41)
+```
+
+```{r pre analyses, eval = FALSE}
+wide_data %>% 
+  inspect_cor()
+
+inspect_na(wide_data)
+
+cen_imputed %>% 
+  rename(activity = ltpa_2020,
+         access = rec_resource_2018,
+         rural = rural_2020,
+         white = white_per_2016,
+         black = black_per_2016,
+         latino = latino_per_2016,
+         crime = county_crime_2020,
+         income = med_inc_2016_thousand) %>% 
+  dplyr::select(access:income) %>%
+  inspectdf::inspect_cor() %>% 
+  inspectdf::show_plot()
+
+cen_imputed %>% 
+  inspectdf::inspect_na() %>% 
+  inspectdf::show_plot()
+
+psych::describe(cen_imputed, na.rm = TRUE)[c('mean', 'sd', 'min', 'max')]
+psych::describeBy(cen_imputed$ltpa_2020, group = cen_imputed$region, na.rm = TRUE)
+
+cen_imputed %>% 
+  group_by(state, county_name) %>%
+  count(county_crime_2020, rec_resource_2018, ltpa_2020)
+```
+
+```{r spatial dataframe}
+poly_datac <- cen_imputed %>%
+  drop_na(acs_geometry) %>%
+  rowid_to_column() %>%
+  st_sf()
+
+acs_polyc <- as(poly_datac, 'Spatial')
+```
+
+```{r functions}
+upper_to_2tail <- function(value){
+  upper <- (1 - value)
+  upper*2
+}
+
+lower_to_2tail <- function(value){
+  value*2
+}
+
+jn_sem <- function(model, x, m, alpha = .05){
+  library(stringi)
+  
+  b1 = model$coefficients[x]
+  b3 = model$coefficients[stri_startswith_fixed(names(model$coefficients), 
+                                         paste0(x,":"))]
+  
+  se_b1 = model$rest.se[paste0("I(x - lambda * WX)", x)]
+  se_b3 = model$rest.se[paste0("I(x - lambda * WX)", x, ":", m)]
+  
+  cov_b1b3 = vcov(model)[x, paste0(x, ":", m)]
+  
+  z_crit = qt(1-alpha/2, (nrow(model$tarX) - model$parameters - 1))
+  # see Bauer & Curran, 2005
+  a = z_crit^2 * se_b3^2 - b3^2
+  b = 2 * (z_crit^2 * cov_b1b3 - b1 * b3)
+  c = z_crit^2 * se_b1^2 - b1^2
+  jn = c(
+    (-b - sqrt(b^2 - 4 * a * c)) / (2 * a),
+    (-b + sqrt(b^2 - 4 * a * c)) / (2 * a)
+  )
+  
+  JN = sort(unname(jn))
+  JN = JN[JN >= min(model$tarX[, paste0("I(x - lambda * WX)", m)]) &
+            JN <= max(model$tarX[, paste0("I(x - lambda * WX)", m)])]
+  
+  JN
+  
+}
+
+theta_plot_sem <- function(model, x, m, alpha = .05, jn = FALSE) {
+  require(dplyr)
+  require(ggplot2)
+  require(stringi)
+  
+  data = tibble(b1 = model$coefficients[x],
+                    b3 = model$coefficients[stri_startswith_fixed(names(model$coefficients), 
+                                                                  paste0(x,":"))],
+                # instead of model look for this
+                    z = quantile(model$tarX[, paste0("I(x - lambda * WX)", m)], seq(0,1,.01)),
+                    theta = b1 + z * b3,
+                    se_b1 = model$rest.se[paste0("I(x - lambda * WX)", x)],
+                    cov_b1b3 = vcov(model)[x, paste0(x, ":", m)],
+                    se_b3 = model$rest.se[paste0("I(x - lambda * WX)", x, ":", m)],
+                    
+                    se_theta = sqrt(se_b1^2 + 2 * z * cov_b1b3 + z^2 * se_b3^2),
+                    ci.lo_theta = theta + qt(alpha/2, (nrow(model$tarX) - model$parameters - 1))*se_theta,
+                    ci.hi_theta = theta + qt(1-alpha/2, (nrow(model$tarX) - model$parameters - 1))*se_theta)
+  if (jn) {
+    JN = jn_sem(model = model, x = x, m = m, alpha = alpha)
+    JN_lines = geom_vline(xintercept = JN, linetype = 2)
+    JN_regions = ifelse(length(JN) == 0, "no significance regions", paste(round(JN,2), collapse = "; "))
+    Xlab = paste0(m, " (JN Significance Regions: ", JN_regions,")")
+  }
+  else {
+    Xlab = m
+    JN_lines = NULL
+  }
+  data %>%
+    ggplot(aes(z, theta, ymin = ci.lo_theta, ymax = ci.hi_theta)) +
+    geom_ribbon(alpha = .2) +
+    geom_line(color = "dodgerblue") +
+    ggtitle(paste("Conditional Effect of", x, "as function of", m)) +
+    geom_hline(yintercept = 0, linetype = 2) +
+    labs(x = Xlab, y = expression(theta)) +
+    JN_lines
+}
+
+jn_sar <- function(model, x, m, alpha = .05){
+  library(stringi)
+  
+  b1 = model$coefficients[x]
+  b3 = model$coefficients[stri_startswith_fixed(names(model$coefficients), 
+                                                paste0(x,":"))]
+  
+  se_b1 = model$rest.se[x]
+  se_b3 = model$rest.se[paste0(x, ":", m)]
+  
+  cov_b1b3 = vcov(model)[x, paste0(x, ":", m)]
+  
+  z_crit = qt(1-alpha/2, (nrow(model$tarX) - model$parameters - 1))
+  # see Bauer & Curran, 2005
+  a = z_crit^2 * se_b3^2 - b3^2
+  b = 2 * (z_crit^2 * cov_b1b3 - b1 * b3)
+  c = z_crit^2 * se_b1^2 - b1^2
+  jn = c(
+    (-b - sqrt(b^2 - 4 * a * c)) / (2 * a),
+    (-b + sqrt(b^2 - 4 * a * c)) / (2 * a)
+  )
+  
+  JN = sort(unname(jn))
+  JN = JN[JN >= min(model$tarX[, paste0("x", m)]) &
+            JN <= max(model$tarX[, paste0("x", m)])]
+  
+  JN
+  
+}
+
+theta_plot_sar <- function(model, x, m, alpha = .05, jn = FALSE) {
+  require(dplyr)
+  require(ggplot2)
+  require(stringi)
+  
+  data = tibble( b1 = model$coefficients[x],
+                 b3 = model$coefficients[stri_startswith_fixed(names(model$coefficients), 
+                                                               paste0(x,":"))],
+                z = quantile(model$tarX[, paste0("x", m)], seq(0, 1, .01)),
+                theta = b1 + z * b3,
+                se_b1 = model$rest.se[x],
+                cov_b1b3 = vcov(model)[x, paste0(x, ":", m)],
+                se_b3 = model$rest.se[paste0(x, ":", m)],
+                
+                se_theta = sqrt(se_b1^2 + 2 * z * cov_b1b3 + z^2 * se_b3^2),
+                ci.lo_theta = theta + qt(alpha/2, (nrow(model$tarX) - model$parameters - 1))*se_theta,
+                ci.hi_theta = theta + qt(1-alpha/2, (nrow(model$tarX) - model$parameters - 1))*se_theta)
+  if (jn) {
+    JN = jn_sar(model = model, x = x, m = m, alpha = alpha)
+    JN_lines = geom_vline(xintercept = JN, linetype = 2)
+    JN_regions = ifelse(length(JN) == 0, "no significance regions", paste(round(JN,2), collapse = "; "))
+    Xlab = paste0(m, " (JN Significance Regions: ", JN_regions,")")
+  }
+  else {
+    Xlab = m
+    JN_lines = NULL
+  }
+  data %>%
+    ggplot(aes(z, theta, ymin = ci.lo_theta, ymax = ci.hi_theta)) +
+    geom_ribbon(alpha = .2) +
+    geom_line(color = "dodgerblue") +
+    ggtitle(paste("Conditional Effect of", x, "as function of", m)) +
+    geom_hline(yintercept = 0, linetype = 2) +
+    labs(x = Xlab, y = expression(theta)) +
+    JN_lines
+}
+```
+
+```{r removing objects for space, eval = FALSE}
+# rm(acs_year)
+# rm(county16)
+# rm(county18)
+# rm(county20)
+# rm(crime16)
+# rm(crime18)
+# rm(final16)
+# rm(imputed)
+# rm(need_acs16)
+# rm(need_acs18)
+# rm(wide16)
+# rm(wide18)
+# rm(wide20)
+# rm(wider)
+# rm(wide_data)
+# rm(variables_acs)
+```
+
+```{r models}
+set.seed(12152020)
+
+model_variablesc <- ltpa_2020c ~ rec_resource_2018c + county_crime_2020c +
+  med_inc_2016_thousandc + rural_2020c +
+  black_per_2016c + latino_per_2016c
+
+int_variablesc <- ltpa_2020c ~ rec_resource_2018c*county_crime_2020c +
+  med_inc_2016_thousandc + rural_2020c +
+  black_per_2016c + latino_per_2016c
+
+int_income_variablesc <- ltpa_2020c ~ rec_resource_2018c*med_inc_2016_thousandc +
+  county_crime_2020c + rural_2020c +
+  black_per_2016c + latino_per_2016c
+```
+
+## Whole United States 
+```{r us weights}
+set.seed(12152020)
+poly_nb <- poly2nb(acs_polyc, row.names = acs_polyc$rowid, queen = TRUE)
+poly_listw <- nb2listw(poly_nb, style = "W", zero.policy = TRUE)
+summary(poly_listw, zero.policy = TRUE)
+```
+
+### Whole United States Moran Test Values
+```{r descriptives and moran tests}
+summary(poly_datac)
+
+summary(poly_datac$ltpa_2020)[c("Min.", "Mean", "Max.")]
+sd(poly_datac$ltpa_2020)
+moran.test(acs_polyc$ltpa_2020c, listw = poly_listw,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+summary(poly_datac$rec_resource_2018)[c("Min.", "Mean", "Max.")]
+sd(poly_datac$rec_resource_2018)
+moran.test(acs_polyc$rec_resource_2018c, listw = poly_listw,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+summary(poly_datac$county_crime_2020)[c("Min.", "Mean", "Max.")]
+sd(poly_datac$county_crime_2020)
+moran.test(acs_polyc$county_crime_2020c, listw = poly_listw,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+summary(poly_datac$med_inc_2016_thousand)[c("Min.", "Mean", "Max.")]
+sd(poly_datac$med_inc_2016_thousand)
+moran.test(acs_polyc$med_inc_2016_thousandc, listw = poly_listw,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+summary(poly_datac$rural_2020)[c("Min.", "Mean", "Max.")]
+sd(poly_datac$rural_2020)
+moran.test(acs_polyc$rural_2020c, listw = poly_listw,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+summary(poly_datac$white_per_2016)[c("Min.", "Mean", "Max.")]
+sd(poly_datac$white_per_2016)
+moran.test(acs_polyc$white_per_2016c, listw = poly_listw,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+summary(poly_datac$black_per_2016)[c("Min.", "Mean", "Max.")]
+sd(poly_datac$black_per_2016)
+moran.test(acs_polyc$black_per_2016c, listw = poly_listw,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+summary(poly_datac$latino_per_2016)[c("Min.", "Mean", "Max.")]
+sd(poly_datac$latino_per_2016)
+moran.test(acs_polyc$latino_per_2016c, listw = poly_listw,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+```
+
+## Northeast
+```{r northeast wrangling}
+northeast <- cen_imputed %>% 
+  filter(region == "Northeast") %>% 
+  mutate(rec_resource_2018c = scale(rec_resource_2018, center = TRUE, scale = FALSE),
+         ltpa_2020c = scale(ltpa_2020, center = TRUE, scale = FALSE),
+         rural_2020c = scale(rural_2020, center = TRUE, scale = FALSE),
+         white_per_2016c = scale(white_per_2016, center = TRUE, scale = FALSE),
+         black_per_2016c = scale(black_per_2016, center = TRUE, scale = FALSE),
+         latino_per_2016c = scale(latino_per_2016, center = TRUE, scale = FALSE),
+         county_crime_2020c = scale(county_crime_2020, center = TRUE, scale = FALSE),
+         med_inc_2016_thousandc = scale(med_inc_2016_thousand, center = TRUE, scale = FALSE)) %>% 
+  mutate(low_crime = county_crime_2020c + 154.80,
+         high_crime = county_crime_2020c - 154.80,
+         low_income = med_inc_2016_thousandc + 14.09,
+         high_income = med_inc_2016_thousandc - 14.09)
+
+northeast <- northeast %>%
+  drop_na(acs_geometry) %>%
+  rowid_to_column() %>%
+  st_sf()
+
+northeast_sp <- as(northeast, 'Spatial')
+```
+
+### Northeast diagnostic LM models
+```{r northeast models for diagnostics}
+ols_northeast <- lm(model_variablesc, data = northeast_sp)
+summary(ols_northeast)
+
+int_northeast <- lm(int_variablesc, data = northeast_sp)
+summary(int_northeast)
+
+int_northeast_income <- lm(int_income_variablesc, data = northeast_sp)
+summary(int_northeast_income)
+```
+
+### Adjacency Weights
+```{r northeast weights}
+set.seed(12152020)
+
+# queen adjaceny weights
+poly_nb_northeast <- poly2nb(northeast_sp, row.names = northeast_sp$rowid, queen = TRUE)
+poly_listw_northeast <- nb2listw(poly_nb_northeast, style = "W", zero.policy = TRUE)
+summary(poly_listw_northeast, zero.policy = TRUE)
+```
+
+### Northeast Descriptives
+```{r northeast descriptives}
+summary(northeast)
+
+summary(northeast$ltpa_2020)[c("Min.", "Mean", "Max.")]
+sd(northeast$ltpa_2020)
+
+summary(northeast$rec_resource_2018)[c("Min.", "Mean", "Max.")]
+sd(northeast$rec_resource_2018)
+
+summary(northeast$county_crime_2020)[c("Min.", "Mean", "Max.")]
+sd(northeast$county_crime_2020)
+
+summary(northeast$med_inc_2016_thousand)[c("Min.", "Mean", "Max.")]
+sd(northeast$med_inc_2016_thousand)
+
+summary(northeast$rural_2020)[c("Min.", "Mean", "Max.")]
+sd(northeast$rural_2020)
+
+summary(northeast$white_per_2016)[c("Min.", "Mean", "Max.")]
+sd(northeast$white_per_2016)
+
+summary(northeast$black_per_2016)[c("Min.", "Mean", "Max.")]
+sd(northeast$black_per_2016)
+
+summary(northeast$latino_per_2016)[c("Min.", "Mean", "Max.")]
+sd(northeast$latino_per_2016)
+```
+
+### Northeast Moran Tests
+```{r northeast moran test}
+moran.test(northeast_sp$ltpa_2020c, listw = poly_listw_northeast,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(northeast_sp$rec_resource_2018c, listw = poly_listw_northeast,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(northeast_sp$county_crime_2020c, listw = poly_listw_northeast,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(northeast_sp$med_inc_2016_thousandc, listw = poly_listw_northeast,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(northeast_sp$rural_2020c, listw = poly_listw_northeast,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(northeast_sp$white_per_2016c, listw = poly_listw_northeast,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(northeast_sp$black_per_2016c, listw = poly_listw_northeast,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(northeast_sp$latino_per_2016c, listw = poly_listw_northeast,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+```
+
+### Spatial Diagnostics and Regression
+```{r northeast main model}
+lm.morantest(ols_northeast, poly_listw_northeast, zero.policy = TRUE, alternative = "two.sided")
+lm.LMtests(ols_northeast, poly_listw_northeast, test=c("LMerr", "LMlag", "RLMerr", "RLMlag"), zero.policy = TRUE)
+
+sem_northeast <- errorsarlm(model_variablesc,
+                            data = northeast_sp,
+                            listw = poly_listw_northeast,
+                            zero.policy = TRUE)
+summary(sem_northeast, Nagelkerke = TRUE, zstats = TRUE)
+
+set.seed(12152020)
+moran.mc(sem_northeast$residuals, listw = poly_listw_northeast,
+                           zero.policy = TRUE, alternative = "greater",
+                           9999) 
+
+upper_to_2tail(value = .640)
+```
+
+```{r northeast main residuals}
+northeast$main_model_res <- sem_northeast$residuals
+
+northeast %>% 
+  filter(main_model_res < .1 &
+           main_model_res > -.1) %>%
+  # filter(state == "NY") %>% 
+  ggplot(aes(county_name, main_model_res)) +
+  geom_point(color = "dodgerblue") +
+  geom_hline(yintercept = 0, color = "black") +
+  coord_flip() +
+  facet_wrap(~state, scales = "free") +
+  theme_minimal()
+
+northeast %>% 
+  group_by(county_name, state) %>% 
+  filter(main_model_res < .1 &
+           main_model_res > -.1) %>%
+  count(main_model_res) %>% 
+  View()
+# The following counties from this are to be used for looking for counties that could be related to for this analysis
+```
+
+```{r northeast crime model}
+lm.morantest(int_northeast, poly_listw_northeast, zero.policy = TRUE, alternative = "two.sided")
+lm.LMtests(int_northeast, poly_listw_northeast, test=c("LMerr", "LMlag", "RLMerr", "RLMlag"), zero.policy = TRUE)
+
+sem_northeast_int <- errorsarlm(int_variablesc,
+                            data = northeast_sp,
+                            listw = poly_listw_northeast,
+                            zero.policy = TRUE)
+summary(sem_northeast_int, Nagelkerke = TRUE, zstats = TRUE)
+
+set.seed(12152020)
+moran.mc(sem_northeast_int$residuals, listw = poly_listw_northeast,
+                           zero.policy = TRUE, alternative = "greater",
+                           9999) 
+
+upper_to_2tail(value = .616)
+```
+
+```{r northeast sim slopes}
+sem_northeast_high <- errorsarlm(ltpa_2020c ~ rec_resource_2018c*high_crime +
+  med_inc_2016_thousandc + rural_2020c +
+  black_per_2016c + latino_per_2016c,
+                            data = northeast_sp,
+                            listw = poly_listw_northeast,
+                            zero.policy = TRUE)
+summary(sem_northeast_high, Nagelkerke = TRUE, zstats = TRUE)
+
+sem_northeast_low <- errorsarlm(ltpa_2020c ~ rec_resource_2018c*low_crime +
+  med_inc_2016_thousandc + rural_2020c +
+  black_per_2016c + latino_per_2016c,
+                            data = northeast_sp,
+                            listw = poly_listw_northeast,
+                            zero.policy = TRUE)
+summary(sem_northeast_low, Nagelkerke = TRUE, zstats = TRUE)
+
+
+northeast %>% 
+  filter(region == "Northeast") %>% 
+ggplot(aes(rec_resource_2018c, ltpa_2020c)) +
+  geom_point(color = 'gray30', alpha = .1) +
+  geom_abline(aes(intercept = -1.221, slope = .108, linetype = "High"), size = 1.25, color = "#ea5227") +
+  geom_abline(aes(intercept = .503, slope = .036, linetype = "Low"), size = 1.25, color = "#669b3e") +
+  # ylim(10, -10) +
+  theme_minimal() +
+  annotate("text", x = -50, y = 12, label = "High Violent Crime Rates",
+           # angle = 5,
+           color = "#ea5227", size = 6) +
+  annotate("text", x = -50, y = 10.5, label = "Low Violent Crime Rates",
+           # angle = 3,
+           color = "#669b3e", size = 6) +
+  labs(x = "Access to Recreational Resources",
+       y = "Leisure-time Physical Activity") +
+  theme(legend.position = "none",
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14))
+
+# johnson-neyman technique and visual
+jn_sem(model = sem_northeast_int,
+       x = "rec_resource_2018c",
+       m = "county_crime_2020c")
+
+theta_plot_sem(model = sem_northeast_int,
+       x = "rec_resource_2018c",
+       m = "county_crime_2020c",
+       jn = TRUE) +
+  theme_minimal()
+```
+
+```{r northeast crime residuals}
+northeast$crime_model_res <- sem_northeast_int$residuals
+
+northeast %>% 
+  filter(crime_model_res < .1 &
+           crime_model_res > -.1) %>% 
+  ggplot(aes(county_name, crime_model_res)) +
+  geom_point(color = "dodgerblue") +
+  geom_hline(yintercept = 0, color = "black") +
+  coord_flip() +
+  facet_wrap(~state, scales = "free") +
+  theme_minimal()
+
+northeast %>% 
+  group_by(county_name, state) %>% 
+  filter(crime_model_res < .1 &
+           crime_model_res > -.1) %>% 
+  count(crime_model_res) %>% 
+  View()
+# The following counties from this are to be used for looking for counties that could be related to for this analysis
+```
+
+```{r northeast income model}
+lm.morantest(int_northeast_income, poly_listw_northeast, zero.policy = TRUE, alternative = "two.sided")
+lm.LMtests(int_northeast_income,
+                                  poly_listw_northeast,
+                                  test=c("LMerr", "LMlag", "RLMerr", "RLMlag"), zero.policy = TRUE)
+
+sem_northeast_int_income <- errorsarlm(int_income_variablesc,
+                            data = northeast_sp,
+                            listw = poly_listw_northeast,
+                            zero.policy = TRUE)
+summary(sem_northeast_int_income, Nagelkerke = TRUE, zstats = TRUE)
+
+set.seed(12152020)
+moran.mc(sem_northeast_int_income$residuals, listw = poly_listw_northeast,
+                           zero.policy = TRUE, alternative = "greater",
+                           9999) 
+
+upper_to_2tail(value = .633)
+```
+
+## South
+```{r south wrangling}
+south <- cen_imputed %>% 
+  filter(region == "South") %>% 
+  mutate(rec_resource_2018c = scale(rec_resource_2018, center = TRUE, scale = FALSE),
+         ltpa_2020c = scale(ltpa_2020, center = TRUE, scale = FALSE),
+         rural_2020c = scale(rural_2020, center = TRUE, scale = FALSE),
+         white_per_2016c = scale(white_per_2016, center = TRUE, scale = FALSE),
+         black_per_2016c = scale(black_per_2016, center = TRUE, scale = FALSE),
+         latino_per_2016c = scale(latino_per_2016, center = TRUE, scale = FALSE),
+         county_crime_2020c = scale(county_crime_2020, center = TRUE, scale = FALSE),
+         med_inc_2016_thousandc = scale(med_inc_2016_thousand, center = TRUE, scale = FALSE)) %>% 
+  mutate(low_crime = county_crime_2020c + 202,
+         high_crime = county_crime_2020c - 202,
+         low_income = med_inc_2016_thousandc + 12.60,
+         high_income = med_inc_2016_thousandc - 12.60)
+
+south <- south %>%
+  drop_na(acs_geometry) %>%
+  rowid_to_column() %>%
+  st_sf()
+
+south_sp <- as(south, 'Spatial')
+```
+
+### South diagnostic LM models
+```{r south models for diagnostics}
+ols_south <- lm(model_variablesc, data = south_sp)
+summary(ols_south)
+
+int_south <- lm(int_variablesc, data = south_sp)
+summary(int_south)
+
+int_south_income <- lm(int_income_variablesc, data = south_sp)
+summary(int_south_income)
+```
+
+### Adjacency Weights
+```{r south weights}
+set.seed(12152020)
+
+poly_nb_south <- poly2nb(south_sp, row.names = south_sp$rowid, queen = TRUE)
+poly_listw_south <- nb2listw(poly_nb_south, style = "W", zero.policy = TRUE)
+summary(poly_listw_south, zero.policy = TRUE)
+```
+
+### South Descriptives
+```{r south descriptives}
+summary(south)
+
+summary(south$ltpa_2020)[c("Min.", "Mean", "Max.")]
+sd(south$ltpa_2020)
+
+summary(south$rec_resource_2018)[c("Min.", "Mean", "Max.")]
+sd(south$rec_resource_2018)
+
+summary(south$county_crime_2020)[c("Min.", "Mean", "Max.")]
+sd(south$county_crime_2020)
+
+summary(south$med_inc_2016_thousand)[c("Min.", "Mean", "Max.")]
+sd(south$med_inc_2016_thousand)
+
+summary(south$rural_2020)[c("Min.", "Mean", "Max.")]
+sd(south$rural_2020)
+
+summary(south$white_per_2016)[c("Min.", "Mean", "Max.")]
+sd(south$white_per_2016)
+
+summary(south$black_per_2016)[c("Min.", "Mean", "Max.")]
+sd(south$black_per_2016)
+
+summary(south$latino_per_2016)[c("Min.", "Mean", "Max.")]
+sd(south$latino_per_2016)
+```
+
+### South Moran Tests
+```{r south moran tests}
+moran.test(south_sp$ltpa_2020c, listw = poly_listw_south,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(south_sp$rec_resource_2018c, listw = poly_listw_south,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(south_sp$county_crime_2020c, listw = poly_listw_south,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(south_sp$med_inc_2016_thousandc, listw = poly_listw_south,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(south_sp$rural_2020c, listw = poly_listw_south,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(south_sp$white_per_2016c, listw = poly_listw_south,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(south_sp$black_per_2016c, listw = poly_listw_south,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(south_sp$latino_per_2016c, listw = poly_listw_south,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+```
+
+### Spatial Diagnostics and Regression
+```{r south main model}
+lm.morantest(ols_south, poly_listw_south, zero.policy = TRUE, alternative = "two.sided")
+lm.LMtests(ols_south, poly_listw_south, test = c("LMerr", "LMlag", "RLMerr", "RLMlag"), zero.policy = TRUE)
+
+sar_south <- lagsarlm(model_variablesc,
+                           data = south_sp,
+                           listw = poly_listw_south,
+                          zero.policy = TRUE)
+summary(sar_south, Nagelkerke = TRUE, zstats = TRUE)
+
+set.seed(12152020)
+moran.mc(sar_south$residuals, listw = poly_listw_south,
+                           zero.policy = TRUE, alternative = "greater",
+                           9999) 
+
+upper_to_2tail(value = .572)
+```
+
+```{r south main model residuals}
+south$main_model_res <- sar_south$residuals
+
+south %>% 
+  filter(main_model_res < .1 &
+           main_model_res > -.1) %>% 
+  ggplot(aes(county_name, main_model_res)) +
+  geom_point(color = "dodgerblue") +
+  geom_hline(yintercept = 0, color = "black") +
+  coord_flip() +
+  facet_wrap(~state, scales = "free") +
+  theme_minimal()
+
+south %>% 
+  group_by(county_name, state) %>% 
+  filter(main_model_res < .1 &
+           main_model_res > -.1) %>% 
+  count(main_model_res) %>% 
+  View()
+# The following counties from this are to be used for looking for counties that could be related to for this analysis
+```
+
+```{r south crime model}
+lm.morantest(int_south, poly_listw_south, zero.policy = TRUE, alternative = "two.sided")
+m.LMtests(int_south, poly_listw_south, test=c("LMerr", "LMlag", "RLMerr", "RLMlag"), zero.policy = TRUE)
+
+sar_south_int <- lagsarlm(int_variablesc,
+                           data = south_sp,
+                           listw = poly_listw_south,
+                          zero.policy = TRUE)
+summary(sar_south_int, Nagelkerke = TRUE, zstats = TRUE)
+
+set.seed(12152020)
+moran.mc(sar_south_int$residuals, listw = poly_listw_south,
+                           zero.policy = TRUE, alternative = "greater",
+                           9999) #p = 
+
+upper_to_2tail(value = .539)
+```
+
+```{r south income model}
+lm.morantest(int_south_income, poly_listw_south, zero.policy = TRUE, alternative = "two.sided")
+lm.LMtests(int_south_income, poly_listw_south, test=c("LMerr", "LMlag", "RLMerr", "RLMlag"), zero.policy = TRUE)
+
+sar_south_int_income <- lagsarlm(int_income_variablesc,
+                           data = south_sp,
+                           listw = poly_listw_south,
+                          zero.policy = TRUE)
+summary(sar_south_int_income, Nagelkerke = TRUE, zstats = TRUE)
+
+set.seed(12152020)
+moran.mc(sar_south_int_income$residuals, listw = poly_listw_south,
+                           zero.policy = TRUE, alternative = "greater",
+                           9999) 
+
+upper_to_2tail(value = .562)
+```
+
+## West
+```{r west wrangling}
+west <- cen_imputed %>% 
+  filter(region == "West") %>% 
+  mutate(rec_resource_2018c = scale(rec_resource_2018, center = TRUE, scale = FALSE),
+         ltpa_2020c = scale(ltpa_2020, center = TRUE, scale = FALSE),
+         rural_2020c = scale(rural_2020, center = TRUE, scale = FALSE),
+         white_per_2016c = scale(white_per_2016, center = TRUE, scale = FALSE),
+         black_per_2016c = scale(black_per_2016, center = TRUE, scale = FALSE),
+         latino_per_2016c = scale(latino_per_2016, center = TRUE, scale = FALSE),
+         county_crime_2020c = scale(county_crime_2020, center = TRUE, scale = FALSE),
+         med_inc_2016_thousandc = scale(med_inc_2016_thousand, center = TRUE, scale = FALSE)) %>% 
+  mutate(low_crime = county_crime_2020c + 171.95,
+         high_crime = county_crime_2020c - 171.95,
+         low_income = med_inc_2016_thousandc + 13.11,
+         high_income = med_inc_2016_thousandc - 13.11)
+
+west <- west %>%
+  drop_na(acs_geometry) %>%
+  rowid_to_column() %>%
+  st_sf()
+
+west_sp <- as(west, 'Spatial')
+```
+
+### West diagnostic LM models
+```{r west models for diagnostics}
+ols_west <- lm(model_variablesc, data = west_sp)
+summary(ols_west)
+
+int_west <- lm(int_variablesc, data = west_sp)
+summary(int_west)
+
+int_west_income <- lm(int_income_variablesc, data = west_sp)
+summary(int_west_income)
+```
+
+### Adjacency Weights
+```{r west weights}
+set.seed(12152020)
+
+poly_nb_west <- poly2nb(west_sp, row.names = west_sp$rowid, queen = TRUE)
+poly_listw_west <- nb2listw(poly_nb_west, style = "W", zero.policy = TRUE)
+summary(poly_listw_west, zero.policy = TRUE)
+```
+
+### West Descriptives
+```{r west descriptives}
+summary(west)
+
+summary(west$ltpa_2020)[c("Min.", "Mean", "Max.")]
+sd(west$ltpa_2020)
+
+summary(west$rec_resource_2018)[c("Min.", "Mean", "Max.")]
+sd(west$rec_resource_2018)
+
+summary(west$county_crime_2020)[c("Min.", "Mean", "Max.")]
+sd(west$county_crime_2020)
+
+summary(west$med_inc_2016_thousand)[c("Min.", "Mean", "Max.")]
+sd(west$med_inc_2016_thousand)
+
+summary(west$rural_2020)[c("Min.", "Mean", "Max.")]
+sd(west$rural_2020)
+
+summary(west$white_per_2016)[c("Min.", "Mean", "Max.")]
+sd(west$white_per_2016)
+
+summary(west$black_per_2016)[c("Min.", "Mean", "Max.")]
+sd(west$black_per_2016)
+
+summary(west$latino_per_2016)[c("Min.", "Mean", "Max.")]
+sd(west$latino_per_2016)
+```
+
+### West Moran Tests
+```{r west moran tests}
+moran.test(west_sp$ltpa_2020c, listw = poly_listw_west,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(west_sp$rec_resource_2018c, listw = poly_listw_west,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(west_sp$county_crime_2020c, listw = poly_listw_west,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(west_sp$med_inc_2016_thousandc, listw = poly_listw_west,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(west_sp$rural_2020c, listw = poly_listw_west,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(west_sp$white_per_2016c, listw = poly_listw_west,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(west_sp$black_per_2016c, listw = poly_listw_west,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(west_sp$latino_per_2016c, listw = poly_listw_west,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+```
+
+### Spatial Diagnostics and Regression
+```{r west main model}
+lm.morantest(ols_west, poly_listw_west, zero.policy = TRUE, alternative = "two.sided")
+lm.LMtests(ols_west, poly_listw_west, test=c("LMerr", "LMlag", "RLMerr", "RLMlag"), zero.policy = TRUE)
+
+sar_west <- lagsarlm(model_variablesc,
+                           data = west_sp,
+                           listw = poly_listw_west,
+                          zero.policy = TRUE)
+summary(sar_west, Nagelkerke = TRUE, zstats = TRUE)
+
+set.seed(12152020)
+moran.mc(sar_west$residuals, listw = poly_listw_west,
+                           zero.policy = TRUE, alternative = "greater",
+                           9999) 
+
+lower_to_2tail(value = .415)
+```
+
+```{r west main model residuals}
+# looking for meaningful residuals
+west$main_model_res <- sar_west$residuals
+
+west %>% 
+  ggplot(aes(county_name, main_model_res)) +
+  geom_point(color = "dodgerblue") +
+  geom_hline(yintercept = 0, color = "black") +
+  coord_flip() +
+  facet_wrap(~state, scales = "free") +
+  theme_minimal()
+
+west %>% 
+  group_by(county_name, state) %>% 
+  filter(main_model_res < .1 &
+           main_model_res > -.1) %>% 
+  count(main_model_res) %>% 
+  View()
+# The following counties from this are to be used for looking for counties that could be related to for this analysis
+```
+
+```{r west crime model}
+lm.morantest(int_west, poly_listw_west, zero.policy = TRUE, alternative = "two.sided")
+lm.LMtests(int_west, poly_listw_west, test=c("LMerr", "LMlag", "RLMerr", "RLMlag"), zero.policy = TRUE)
+
+sar_west_int <- lagsarlm(int_variablesc,
+                           data = west_sp,
+                           listw = poly_listw_west,
+                          zero.policy = TRUE)
+summary(sar_west_int, Nagelkerke = TRUE, zstats = TRUE)
+
+set.seed(12152020)
+moran.mc(sar_west_int$residuals, listw = poly_listw_west,
+                           zero.policy = TRUE, alternative = "greater",
+                           9999)
+
+lower_to_2tail(value = .379)
+```
+
+```{r west income model}
+lm.morantest(int_west_income, poly_listw_west, zero.policy = TRUE, alternative = "two.sided")
+lm.LMtests(int_west_income, poly_listw_west, test=c("LMerr", "LMlag", "RLMerr", "RLMlag"), zero.policy = TRUE)
+
+sar_west_int_income <- lagsarlm(int_income_variablesc,
+                           data = west_sp,
+                           listw = poly_listw_west,
+                          zero.policy = TRUE)
+summary(sar_west_int_income, Nagelkerke = TRUE, zstats = TRUE)
+
+set.seed(12152020)
+moran.mc(sar_west_int_income$residuals, listw = poly_listw_west,
+                           zero.policy = TRUE, alternative = "greater",
+                           9999) 
+
+lower_to_2tail(value = .454)
+```
+
+```{r west income sim slopes}
+sar_west_high_income <- lagsarlm(ltpa_2020c ~ rec_resource_2018c*high_income +
+  county_crime_2020c + rural_2020c +
+  black_per_2016c + latino_per_2016c,
+                           data = west_sp,
+                           listw = poly_listw_west,
+                          zero.policy = TRUE)
+summary(sar_west_high_income, Nagelkerke = TRUE, zstats = TRUE)
+# at high income levels, access and LTPA significantly positively associated (b = 0.055, se = 0.010, p < .001)
+
+sar_west_low_income <- lagsarlm(ltpa_2020c ~ rec_resource_2018c*low_income +
+  county_crime_2020c + rural_2020c +
+  black_per_2016c + latino_per_2016c,
+                           data = west_sp,
+                           listw = poly_listw_west,
+                          zero.policy = TRUE)
+summary(sar_west_low_income, Nagelkerke = TRUE, zstats = TRUE)
+# at low income levels, access and LTPA significantly positively associated (b = 0.044, se = 0.010, p < .001)
+
+west %>% 
+  filter(region == "West") %>% 
+ggplot(aes(rec_resource_2018c, ltpa_2020c)) +
+  geom_point(color = 'gray30', alpha = .1) +
+  geom_abline(aes(intercept = .991, slope = .081, linetype = "High"), size = 1.25, color = "#ea5227") +
+  geom_abline(aes(intercept = -1.206, slope = .028, linetype = "Low"), size = 1.25, color = "#669b3e") +
+  # ylim(10, -10) +
+  theme_minimal() +
+  annotate("text", x = -45, y = 12, label = "High Median Household Income",
+           # angle = 5,
+           color = "#ea5227", size = 6) +
+  annotate("text", x = -45, y = 11, label = "Low Median Household Income",
+           # angle = 3,
+           color = "#669b3e", size = 6) +
+  labs(x = "Access to Recreational Resources",
+       y = "Leisure-time Physical Activity") +
+  theme(legend.position = "none",
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14))
+
+jn_sar(sar_west_int_income, x = "rec_resource_2018c", m = "med_inc_2016_thousandc")
+
+theta_plot_sar(sar_west_int_income, x = "rec_resource_2018c", m = "med_inc_2016_thousandc", jn = TRUE)
+```
+
+```{r west income model residuals}
+west$income_model_res <- sar_west_int_income$residuals
+
+west %>% 
+  filter(income_model_res < .1 &
+           income_model_res > -.1) %>% 
+  ggplot(aes(county_name, income_model_res)) +
+  geom_point(color = "dodgerblue") +
+  geom_hline(yintercept = 0, color = "black") +
+  coord_flip() +
+  facet_wrap(~state, scales = "free") +
+  theme_minimal()
+
+west %>% 
+  group_by(county_name, state) %>% 
+  filter(income_model_res < .1 &
+           income_model_res > -.1) %>% 
+  count(income_model_res) %>% 
+  View()
+# The following counties from this are to be used for looking for counties that could be related to for this analysis
+```
+
+## Midwest
+```{r midwest wrangling}
+midwest <- cen_imputed %>% 
+  filter(region == "Midwest") %>%
+  mutate(rec_resource_2018c = scale(rec_resource_2018, center = TRUE, scale = FALSE),
+         ltpa_2020c = scale(ltpa_2020, center = TRUE, scale = FALSE),
+         rural_2020c = scale(rural_2020, center = TRUE, scale = FALSE),
+         white_per_2016c = scale(white_per_2016, center = TRUE, scale = FALSE),
+         black_per_2016c = scale(black_per_2016, center = TRUE, scale = FALSE),
+         latino_per_2016c = scale(latino_per_2016, center = TRUE, scale = FALSE),
+         county_crime_2020c = scale(county_crime_2020, center = TRUE, scale = FALSE),
+         med_inc_2016_thousandc = scale(med_inc_2016_thousand, center = TRUE, scale = FALSE)) %>% 
+  mutate(low_crime = county_crime_2020c + 160.97,
+         high_crime = county_crime_2020c - 160.97,
+         low_income = med_inc_2016_thousandc + 9.11,
+         high_income = med_inc_2016_thousandc - 9.11)
+
+midwest <- midwest %>%
+  drop_na(acs_geometry) %>%
+  rowid_to_column() %>%
+  st_sf()
+
+midwest_sp <- as(midwest, 'Spatial')
+```
+
+### Midwest diagnostic LM models
+```{r midwest models for diagnostics}
+ols_midwest <- lm(model_variablesc, data = midwest_sp)
+summary(ols_midwest)
+
+int_midwest <- lm(int_variablesc, data = midwest_sp)
+summary(int_midwest)
+
+int_midwest_income <- lm(int_income_variablesc, data = midwest_sp)
+summary(int_midwest_income)
+```
+
+### Adjacency Weights
+```{r}
+set.seed(12152020)
+
+# queen adjaceny weights
+poly_nb_midwest <- poly2nb(midwest_sp, row.names = midwest_sp$rowid, queen = TRUE)
+poly_listw_midwest <- nb2listw(poly_nb_midwest, style = "W", zero.policy = TRUE)
+summary(poly_listw_midwest, zero.policy = TRUE)
+```
+
+### Midwest Descriptives
+```{r}
+summary(midwest)
+
+summary(midwest$ltpa_2020)[c("Min.", "Mean", "Max.")]
+sd(midwest$ltpa_2020)
+
+summary(midwest$rec_resource_2018)[c("Min.", "Mean", "Max.")]
+sd(midwest$rec_resource_2018)
+
+summary(midwest$county_crime_2020)[c("Min.", "Mean", "Max.")]
+sd(midwest$county_crime_2020)
+
+summary(midwest$med_inc_2016_thousand)[c("Min.", "Mean", "Max.")]
+sd(midwest$med_inc_2016_thousand)
+
+summary(midwest$rural_2020)[c("Min.", "Mean", "Max.")]
+sd(midwest$rural_2020)
+
+summary(midwest$white_per_2016)[c("Min.", "Mean", "Max.")]
+sd(midwest$white_per_2016)
+
+summary(midwest$black_per_2016)[c("Min.", "Mean", "Max.")]
+sd(midwest$black_per_2016)
+
+summary(midwest$latino_per_2016)[c("Min.", "Mean", "Max.")]
+sd(midwest$latino_per_2016)
+```
+
+### Midwest Moran Tests
+```{r}
+moran.test(midwest_sp$ltpa_2020c, listw = poly_listw_midwest,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(midwest_sp$rec_resource_2018c, listw = poly_listw_midwest,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(midwest_sp$county_crime_2020c, listw = poly_listw_midwest,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(midwest_sp$med_inc_2016_thousandc, listw = poly_listw_midwest,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(midwest_sp$rural_2020c, listw = poly_listw_midwest,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(midwest_sp$white_per_2016c, listw = poly_listw_midwest,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(midwest_sp$black_per_2016c, listw = poly_listw_midwest,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+
+moran.test(midwest_sp$latino_per_2016c, listw = poly_listw_midwest,
+           zero.policy = TRUE,
+           alternative = "two.sided")
+```
+
+### Spatial Diagnostics and Regression
+```{r}
+lm.morantest(ols_midwest, poly_listw_midwest, zero.policy = TRUE, alternative = "two.sided")
+lm.LMtests(ols_midwest,
+                                  poly_listw_midwest,
+                                  test=c("LMerr", "LMlag", "RLMerr", "RLMlag"), zero.policy = TRUE)
+
+sem_midwest <- errorsarlm(model_variablesc,
+                            data = midwest_sp,
+                            listw = poly_listw_midwest,
+                            zero.policy = TRUE)
+summary(sem_midwest, Nagelkerke = TRUE, zstats = TRUE)
+
+set.seed(12152020)
+moran.mc(sem_midwest$residuals, listw = poly_listw_midwest,
+                           zero.policy = TRUE,
+                           9999) #p = 
+
+upper_to_2tail(value = .962)
+```
+
+```{r}
+lm.morantest(int_midwest, poly_listw_midwest, zero.policy = TRUE, alternative = "two.sided")
+lm.LMtests(int_midwest, poly_listw_midwest, test=c("LMerr", "LMlag", "RLMerr", "RLMlag"), zero.policy = TRUE)
+
+sem_midwest_int <- errorsarlm(int_variablesc,
+                            data = midwest_sp,
+                            listw = poly_listw_midwest,
+                            zero.policy = TRUE)
+summary(sem_midwest_int, Nagelkerke = TRUE, zstats = TRUE)
+
+set.seed(12152020)
+moran.mc(sem_midwest_int$residuals, listw = poly_listw_midwest,
+                           zero.policy = TRUE, alternative = "greater",
+                           9999) 
+
+upper_to_2tail(value = .961)
+```
+
+```{r}
+lm.morantest(int_midwest_income, poly_listw_midwest, zero.policy = TRUE, alternative = "two.sided")
+lm.LMtests(int_midwest_income, poly_listw_midwest, test=c("LMerr", "LMlag", "RLMerr", "RLMlag"), zero.policy = TRUE)
+
+sem_midwest_int_income <- errorsarlm(int_income_variablesc,
+                            data = midwest_sp,
+                            listw = poly_listw_midwest,
+                            zero.policy = TRUE)
+summary(sem_midwest_int_income, Nagelkerke = TRUE, zstats = TRUE)
+
+set.seed(12152020)
+moran.mc(sem_midwest_int_income$residuals, listw = poly_listw_midwest,
+                           zero.policy = TRUE, alternative = "greater",
+                           9999) 
+
+upper_to_2tail(value = .963)
+
+jn_sem(sem_midwest_int_income, x = "rec_resource_2018c", m = "med_inc_2016_thousandc")
+
+theta_plot_sem(sem_midwest_int_income, x = "rec_resource_2018c", m = "med_inc_2016_thousandc", jn = TRUE)
+```
+
+```{r}
+midwest$income_model_res <- sem_midwest_int_income$residuals
+
+midwest %>% 
+  filter(income_model_res < .1 &
+           income_model_res > -.1) %>% 
+  ggplot(aes(county_name, income_model_res)) +
+  geom_point(color = "dodgerblue") +
+  geom_hline(yintercept = 0, color = "black") +
+  coord_flip() +
+  facet_wrap(~state, scales = "free") +
+  theme_minimal()
+
+midwest %>% 
+  group_by(county_name, state) %>% 
+  filter(income_model_res < .1 &
+           income_model_res > -.1) %>% 
+  count(income_model_res) %>% 
+  View()
+```
+
+## Descriptive Analyses for Each Region
+
+```{r region specific descriptives}
+
+```
+
+## Whole United States Analyses (Main, Crime Interaction, Income Interaction)
+
+```{r whole US}
+# These don't include region
+model <- lm(model_variablesc, data = acs_polyc)
+summary(model)
+
+lm.morantest(model, poly_listw, zero.policy = TRUE, alternative = "two.sided")
+lm.LMtests(model, poly_listw,test=c("LMerr", "LMlag", "RLMerr", "RLMlag"), zero.policy = TRUE)
+
+sar_model <- lagsarlm(model_variablesc,
+  data = acs_polyc, listw = poly_listw, zero.policy = TRUE)
+summary(sar_model, Nagelkerke = TRUE, zstats = TRUE)
+
+set.seed(12152020)
+moran.mc(sar_model$residuals, listw = poly_listw, zero.policy = TRUE, nsim = 9999)
+
+upper_to_2tail(value = .9316)
+
+inter_reg <- lm(int_variablesc, data = acs_polyc)
+summary(inter_reg)
+
+lm.morantest(inter_reg, poly_listw, zero.policy = TRUE, alternative = "two.sided")
+lm.LMtests(inter_reg, poly_listw, test = c("LMerr", "LMlag", "RLMerr", "RLMlag"), zero.policy = TRUE)
+
+sar_inter_model <- lagsarlm(int_variablesc, data = acs_polyc, listw = poly_listw, zero.policy = TRUE)
+summary(sar_inter_model, Nagelkerke = TRUE, zstats = TRUE)
+
+set.seed(12152020)
+moran.mc(sar_inter_model$residuals, listw = poly_listw, zero.policy = TRUE, nsim = 9999)
+
+upper_to_2tail(value = .586)
+
+income_inter_reg <- lm(int_income_variablesc, data = acs_polyc)
+
+lm.morantest(income_inter_reg, poly_listw, zero.policy = TRUE, alternative = "two.sided")
+lm.LMtests(income_inter_reg, poly_listw,test=c("LMerr", "LMlag", "RLMerr", "RLMlag"), zero.policy = TRUE)
+
+sar_income_inter_model <- lagsarlm(income_inter_reg, data = acs_polyc, listw = poly_listw, zero.policy = TRUE)
+summary(sar_income_inter_model, Nagelkerke = TRUE, zstats = TRUE)
+
+set.seed(12152020)
+moran.mc(sar_income_inter_model$residuals, listw = poly_listw, zero.policy = TRUE, nsim = 9999)
+
+upper_to_2tail(value = .578)
+```
+
+
+
+
